@@ -325,7 +325,12 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
                       <tr key={idx} className="hover:bg-slate-850/50">
                         <td className="py-2 px-3 text-slate-500 font-sans">{idx + 1}</td>
                         <td className="py-2 px-3 font-sans font-semibold text-slate-200">
-                          {item.namaIkan}
+                          <div>{item.namaIkan}</div>
+                          {item.weights && item.weights.length > 0 && (
+                            <div className="text-[10px] text-amber-400 font-mono mt-0.5 font-normal">
+                              ({item.weights.length} box): {item.weights.join(', ')}
+                            </div>
+                          )}
                         </td>
                         <td className="py-2 px-3 text-right text-slate-300">
                           {formatKg(item.beratKg)}

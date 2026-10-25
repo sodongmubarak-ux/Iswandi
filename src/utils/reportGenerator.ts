@@ -191,25 +191,38 @@ export async function generatePdfReport(
     y += 10;
   } else {
     items.forEach((item, index) => {
-      checkPageBreak(8);
+      const hasWeights = Boolean(item.weights && item.weights.length > 0);
+      const rowHeight = hasWeights ? 10.5 : 7;
+      checkPageBreak(rowHeight + 1);
 
       const isEven = index % 2 === 0;
       doc.setFillColor(isEven ? 255 : 248, isEven ? 255 : 250, isEven ? 255 : 252);
-      doc.rect(margin, y, tableW, 7, 'F');
+      doc.rect(margin, y, tableW, rowHeight, 'F');
       doc.setDrawColor(241, 245, 249);
-      doc.line(margin, y + 7, margin + tableW, y + 7);
+      doc.line(margin, y + rowHeight, margin + tableW, y + rowHeight);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(51, 65, 85);
 
-      doc.text(`${index + 1}`, margin + 3, y + 5);
-      doc.text(item.namaIkan || '-', margin + colNo + 3, y + 5);
-      doc.text(formatKg(item.beratKg), margin + colNo + colIkan + colBerat - 3, y + 5, { align: 'right' });
-      doc.text(item.hargaPerKg ? formatRupiah(item.hargaPerKg) : '-', margin + colNo + colIkan + colBerat + colHarga - 3, y + 5, { align: 'right' });
-      doc.text(item.subtotal ? formatRupiah(item.subtotal) : '-', margin + tableW - 3, y + 5, { align: 'right' });
+      doc.text(`${index + 1}`, margin + 3, y + 4.8);
+      doc.text(item.namaIkan || '-', margin + colNo + 3, y + 4.8);
 
-      y += 7;
+      if (hasWeights) {
+        doc.setFontSize(6.5);
+        doc.setTextColor(180, 83, 9);
+        const weightsStr = `(${item.weights!.length} box): ${item.weights!.join(', ')}`;
+        const truncatedStr = weightsStr.length > 55 ? `${weightsStr.slice(0, 52)}...` : weightsStr;
+        doc.text(truncatedStr, margin + colNo + 3, y + 8.5);
+        doc.setFontSize(8);
+        doc.setTextColor(51, 65, 85);
+      }
+
+      doc.text(formatKg(item.beratKg), margin + colNo + colIkan + colBerat - 3, y + 4.8, { align: 'right' });
+      doc.text(item.hargaPerKg ? formatRupiah(item.hargaPerKg) : '-', margin + colNo + colIkan + colBerat + colHarga - 3, y + 4.8, { align: 'right' });
+      doc.text(item.subtotal ? formatRupiah(item.subtotal) : '-', margin + tableW - 3, y + 4.8, { align: 'right' });
+
+      y += rowHeight;
     });
 
     // Total Ikan Row
@@ -437,7 +450,7 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
   // Section 2: Table
   totalHeight += 32; // Section 2 title
   totalHeight += 38; // Table header
-  totalHeight += Math.max(record.items.length, 1) * 34; // Rows
+  totalHeight += record.items.reduce((acc, it) => acc + (it.weights && it.weights.length > 0 ? 46 : 34), 0); // Dynamic rows
   totalHeight += 40; // Table total row
   totalHeight += 24; // Gap
 
@@ -602,8 +615,10 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
   curY += thH;
 
   // Table Data Rows
-  const rowH = 32;
   record.items.forEach((item, idx) => {
+    const hasWeights = Boolean(item.weights && item.weights.length > 0);
+    const rowH = hasWeights ? 46 : 32;
+
     ctx.fillStyle = idx % 2 === 0 ? '#0f172a' : '#141e33';
     ctx.fillRect(padding, curY, contentWidth, rowH);
 
@@ -614,7 +629,15 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
 
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 11.5px system-ui, -apple-system, sans-serif';
-    ctx.fillText(item.namaIkan, colX.nama, curY + 20);
+    ctx.fillText(item.namaIkan, colX.nama, curY + (hasWeights ? 17 : 20));
+
+    if (hasWeights) {
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = '10px monospace';
+      const weightsStr = `(${item.weights!.length} box): ${item.weights!.join(', ')}`;
+      const truncated = weightsStr.length > 40 ? `${weightsStr.slice(0, 37)}...` : weightsStr;
+      ctx.fillText(truncated, colX.nama, curY + 34);
+    }
 
     ctx.textAlign = 'right';
     ctx.fillStyle = '#38bdf8';

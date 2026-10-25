@@ -1,15 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Save,
   Plus,
   Trash2,
   AlertTriangle,
   RotateCcw,
+  RotateCw,
   CheckCircle2,
   Image as ImageIcon,
-  Sparkles,
   Camera,
   X,
+  Edit2,
+  Check,
+  Scale,
+  DollarSign,
+  ArrowRight,
   Info,
 } from 'lucide-react';
 import { AppSettings, BookkeepingRecord, FishItem } from '../types';
@@ -23,16 +28,16 @@ import {
 } from '../utils/calculator';
 
 const COMMON_FISH = [
-  'Cakalang',
   'Tongkol',
-  'Tuna',
   'Layang',
+  'Soret',
+  'Cakalang',
+  'Tuna',
   'Deho',
   'Madidihang',
   'Kembung',
   'Tenggiri',
   'Lemuru',
-  'Kuwe',
 ];
 
 interface TambahManualViewProps {
@@ -54,26 +59,61 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
     initialData?.tanggal || new Date().toISOString().split('T')[0]
   );
   const [rumpon, setRumpon] = useState<string>(initialData?.rumpon || '');
-  const [items, setItems] = useState<FishItem[]>(
-    initialData?.items && initialData.items.length > 0
-      ? initialData.items
-      : [
-          {
-            id: `item-${Date.now()}-1`,
-            namaIkan: 'Cakalang',
-            beratKg: 0,
-            confidence: 'high',
-          },
-        ]
-  );
 
-  // Manual total revenue override
-  const [useManualTotalHarga, setUseManualTotalHarga] = useState<boolean>(
-    Boolean(initialData?.totalHargaIsManual)
-  );
-  const [manualTotalHarga, setManualTotalHarga] = useState<string>(
-    initialData?.totalHarga ? String(initialData.totalHarga) : ''
-  );
+  // Initialize with 3 flexible fish slots: Tongkol, Layang, Soret (or initialData items)
+  const [items, setItems] = useState<FishItem[]>(() => {
+    if (initialData?.items && initialData.items.length > 0) {
+      return initialData.items.map((it, idx) => ({
+        id: it.id || `fish-${Date.now()}-${idx}`,
+        namaIkan: it.namaIkan || `Ikan ${idx + 1}`,
+        beratKg: it.beratKg || 0,
+        hargaPerKg: it.hargaPerKg,
+        subtotal: it.subtotal,
+        confidence: 'high',
+        weights: it.weights && it.weights.length > 0
+          ? it.weights
+          : (it.beratKg > 0 ? [it.beratKg] : []),
+      }));
+    }
+    return [
+      {
+        id: `fish-1`,
+        namaIkan: 'Tongkol',
+        beratKg: 0,
+        confidence: 'high',
+        weights: [],
+      },
+      {
+        id: `fish-2`,
+        namaIkan: 'Layang',
+        beratKg: 0,
+        confidence: 'high',
+        weights: [],
+      },
+      {
+        id: `fish-3`,
+        namaIkan: 'Soret',
+        beratKg: 0,
+        confidence: 'high',
+        weights: [],
+      },
+    ];
+  });
+
+  // Active Fish Slot Index
+  const [activeFishIndex, setActiveFishIndex] = useState<number>(0);
+
+  // Box weight numeric input state
+  const [weightInput, setWeightInput] = useState<string>('');
+  const weightInputRef = useRef<HTMLInputElement>(null);
+
+  // Inline editing of a single box weight
+  const [editingWeightIndex, setEditingWeightIndex] = useState<number | null>(null);
+  const [editingWeightValue, setEditingWeightValue] = useState<string>('');
+
+  // Editing fish name
+  const [isEditingFishName, setIsEditingFishName] = useState<boolean>(false);
+  const [tempFishName, setTempFishName] = useState<string>('');
 
   // Fee Overrides
   const [pemikulIsManual, setPemikulIsManual] = useState<boolean>(
@@ -111,8 +151,16 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
 
-  // File Input Ref
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  // Hidden File Inputs for Camera & Gallery
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  const activeFish = items[activeFishIndex] || items[0];
+
+  // Auto focus input on mount & fish switch
+  useEffect(() => {
+    weightInputRef.current?.focus();
+  }, [activeFishIndex]);
 
   // Handle Photo selection
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,55 +175,212 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
     e.target.value = '';
   };
 
-  // Row management
-  const handleAddItem = () => {
-    setItems((prev) => [
-      ...prev,
-      {
-        id: `item-${Date.now()}-${prev.length + 1}`,
-        namaIkan: 'Tongkol',
-        beratKg: 0,
-        confidence: 'high',
-      },
-    ]);
+  // Rotate photo using canvas
+  const handleRotatePhoto = (deg: number) => {
+    if (!photoBase64) return;
+    const img = new Image();
+    img.src = photoBase64;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      if (deg === 90 || deg === -90 || deg === 270) {
+        canvas.width = img.height;
+        canvas.height = img.width;
+      } else {
+        canvas.width = img.width;
+        canvas.height = img.height;
+      }
+
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((deg * Math.PI) / 180);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+      const rotatedBase64 = canvas.toDataURL('image/jpeg', 0.9);
+      setPhotoBase64(rotatedBase64);
+    };
   };
 
-  const handleRemoveItem = (index: number) => {
-    if (items.length <= 1) {
-      setErrorMessage('Harus ada setidaknya satu jenis ikan.');
+  // Add Box Weight on Enter or Click
+  const handleAddBoxWeight = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanStr = weightInput.trim().replace(',', '.');
+    const val = parseFloat(cleanStr);
+
+    if (isNaN(val) || val <= 0) {
+      weightInputRef.current?.focus();
       return;
     }
-    setItems((prev) => prev.filter((_, i) => i !== index));
+
+    const roundedVal = Math.round(val * 10) / 10;
+
+    setItems((prev) => {
+      const updated = [...prev];
+      const cur = updated[activeFishIndex];
+      const nextWeights = [...(cur.weights || []), roundedVal];
+      const totalKg = Math.round(nextWeights.reduce((a, b) => a + b, 0) * 10) / 10;
+      const subtotal = cur.hargaPerKg ? Math.round(totalKg * cur.hargaPerKg) : undefined;
+
+      updated[activeFishIndex] = {
+        ...cur,
+        weights: nextWeights,
+        beratKg: totalKg,
+        subtotal,
+      };
+      return updated;
+    });
+
+    setWeightInput('');
+    // Ensure keyboard remains open and focus stays on input
+    setTimeout(() => {
+      weightInputRef.current?.focus();
+    }, 10);
   };
 
-  const handleUpdateItem = (index: number, field: keyof FishItem, value: unknown) => {
+  // Remove a single box weight
+  const handleRemoveBoxWeight = (weightIndex: number) => {
     setItems((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
-      if (field === 'beratKg' || field === 'hargaPerKg') {
-        const b = field === 'beratKg' ? Number(value) : next[index].beratKg;
-        const h = field === 'hargaPerKg' ? Number(value) : next[index].hargaPerKg;
-        if (b > 0 && h && h > 0) {
-          next[index].subtotal = b * h;
-        }
-      }
-      return next;
+      const updated = [...prev];
+      const cur = updated[activeFishIndex];
+      const nextWeights = (cur.weights || []).filter((_, i) => i !== weightIndex);
+      const totalKg = Math.round(nextWeights.reduce((a, b) => a + b, 0) * 10) / 10;
+      const subtotal = cur.hargaPerKg ? Math.round(totalKg * cur.hargaPerKg) : undefined;
+
+      updated[activeFishIndex] = {
+        ...cur,
+        weights: nextWeights,
+        beratKg: totalKg,
+        subtotal,
+      };
+      return updated;
     });
   };
 
-  // Dynamic calculations
+  // Save edited single box weight
+  const handleSaveEditedWeight = (weightIndex: number) => {
+    const val = parseFloat(editingWeightValue.replace(',', '.'));
+    if (!isNaN(val) && val > 0) {
+      const roundedVal = Math.round(val * 10) / 10;
+      setItems((prev) => {
+        const updated = [...prev];
+        const cur = updated[activeFishIndex];
+        const nextWeights = [...(cur.weights || [])];
+        nextWeights[weightIndex] = roundedVal;
+        const totalKg = Math.round(nextWeights.reduce((a, b) => a + b, 0) * 10) / 10;
+        const subtotal = cur.hargaPerKg ? Math.round(totalKg * cur.hargaPerKg) : undefined;
+
+        updated[activeFishIndex] = {
+          ...cur,
+          weights: nextWeights,
+          beratKg: totalKg,
+          subtotal,
+        };
+        return updated;
+      });
+    }
+    setEditingWeightIndex(null);
+    setEditingWeightValue('');
+    setTimeout(() => {
+      weightInputRef.current?.focus();
+    }, 10);
+  };
+
+  // Clear all box weights for current fish
+  const handleClearCurrentFishWeights = () => {
+    if (!activeFish.weights || activeFish.weights.length === 0) return;
+    if (window.confirm(`Hapus semua angka timbangan untuk ${activeFish.namaIkan}?`)) {
+      setItems((prev) => {
+        const updated = [...prev];
+        const cur = updated[activeFishIndex];
+        updated[activeFishIndex] = {
+          ...cur,
+          weights: [],
+          beratKg: 0,
+          subtotal: undefined,
+        };
+        return updated;
+      });
+      setTimeout(() => {
+        weightInputRef.current?.focus();
+      }, 10);
+    }
+  };
+
+  // Update Harga per kg for active fish
+  const handleUpdateHargaPerKg = (hargaVal: number | undefined) => {
+    setItems((prev) => {
+      const updated = [...prev];
+      const cur = updated[activeFishIndex];
+      const h = hargaVal && hargaVal > 0 ? hargaVal : undefined;
+      const subtotal = h && cur.beratKg > 0 ? Math.round(cur.beratKg * h) : undefined;
+
+      updated[activeFishIndex] = {
+        ...cur,
+        hargaPerKg: h,
+        subtotal,
+      };
+      return updated;
+    });
+  };
+
+  // Save renamed fish
+  const handleSaveFishName = () => {
+    const trimmed = tempFishName.trim();
+    if (trimmed) {
+      setItems((prev) => {
+        const updated = [...prev];
+        updated[activeFishIndex] = {
+          ...updated[activeFishIndex],
+          namaIkan: trimmed,
+        };
+        return updated;
+      });
+    }
+    setIsEditingFishName(false);
+  };
+
+  // Add new fish type slot
+  const handleAddNewFishSlot = () => {
+    const newIdx = items.length + 1;
+    const defaultName = `Ikan ${newIdx}`;
+    setItems((prev) => [
+      ...prev,
+      {
+        id: `fish-${Date.now()}-${newIdx}`,
+        namaIkan: defaultName,
+        beratKg: 0,
+        confidence: 'high',
+        weights: [],
+      },
+    ]);
+    setActiveFishIndex(items.length);
+  };
+
+  // Remove a fish type slot
+  const handleRemoveFishSlot = (idxToRemove: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (items.length <= 1) {
+      setErrorMessage('Minimal harus ada satu jenis ikan.');
+      return;
+    }
+    const fishName = items[idxToRemove].namaIkan;
+    if (window.confirm(`Hapus slot jenis ikan "${fishName}" beserta seluruh angka timbangannya?`)) {
+      setItems((prev) => prev.filter((_, i) => i !== idxToRemove));
+      if (activeFishIndex >= idxToRemove) {
+        setActiveFishIndex(Math.max(0, activeFishIndex - 1));
+      }
+    }
+  };
+
+  // Calculations across all fish types
   const totalBeratKg = calculateTotalKg(items);
-  const computedRevenue = calculateItemsRevenue(items);
-  const effectiveTotalHarga = useManualTotalHarga
-    ? Number(manualTotalHarga) || 0
-    : computedRevenue;
+  const totalNilaiIkan = calculateItemsRevenue(items);
 
   const calc = calculateBookkeeping(
     totalBeratKg,
-    effectiveTotalHarga,
+    totalNilaiIkan,
     {
-      totalHargaIsManual: useManualTotalHarga,
-      manualTotalHarga: Number(manualTotalHarga) || 0,
       pemikulIsManual,
       manualPemikul: Number(manualPemikul) || 0,
       abkIsManual,
@@ -188,27 +393,31 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
     settings
   );
 
-  // Save handler
+  // Save Bookkeeping
   const handleSave = async () => {
     setErrorMessage(null);
 
     if (totalBeratKg <= 0 && items.every((i) => !i.beratKg)) {
-      setErrorMessage('Masukkan berat ikan yang valid.');
+      setErrorMessage('Masukkan angka timbangan minimal satu box sebelum menyimpan.');
       return;
     }
 
     setIsSaving(true);
     try {
       const recordId = initialData?.id || `rec-${Date.now()}`;
+      // Filter out empty items if more than 1 item and has 0 kg, but keep at least active items
+      const validItems = items.filter((it) => it.beratKg > 0 || (it.weights && it.weights.length > 0));
+      const itemsToSave = validItems.length > 0 ? validItems : items;
+
       const record: BookkeepingRecord = {
         id: recordId,
         tanggal: tanggal || new Date().toISOString().split('T')[0],
         rumpon: rumpon.trim() || 'Rumpon Utama',
-        items,
+        items: itemsToSave,
         totalBeratKg: calc.totalBeratKg,
         totalTonase: calc.totalTonase,
         totalHarga: calc.totalHargaIkan,
-        totalHargaIsManual: useManualTotalHarga,
+        totalHargaIsManual: false,
 
         biayaPemikul: calc.biayaPemikul,
         biayaPemikulIsManual: pemikulIsManual,
@@ -245,9 +454,17 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
 
   return (
     <div className="space-y-5 pb-24">
-      {/* Hidden file picker */}
+      {/* Hidden file pickers for Camera & Gallery */}
       <input
-        ref={fileInputRef}
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handlePhotoSelect}
+        className="hidden"
+      />
+      <input
+        ref={galleryInputRef}
         type="file"
         accept="image/*"
         onChange={handlePhotoSelect}
@@ -256,13 +473,18 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
 
       {/* Header Banner */}
       <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-bold text-white">
-            {initialData?.id ? 'Edit Catatan Pembukuan' : 'Tambah Pembukuan Manual'}
-          </h2>
-          <p className="text-xs text-slate-400">
-            Kalkulasi otomatis biaya pemikul, ABK, bongkar, nyelam & bersih.
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+            <Scale className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-white">
+              {initialData?.id ? 'Edit Catatan Penimbangan' : 'Tambah Penimbangan Box (Manual)'}
+            </h2>
+            <p className="text-xs text-slate-400">
+              Input berat per box dengan Enter cepat, fleksibel antarjenis ikan & hitung otomatis.
+            </p>
+          </div>
         </div>
         {initialData?.id && (
           <button
@@ -287,7 +509,7 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-              Tanggal Pembukuan
+              Tanggal Penimbangan
             </label>
             <input
               type="date"
@@ -311,190 +533,385 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
         </div>
       </div>
 
-      {/* Fish Items Table */}
-      <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
+      {/* ============================================================ */}
+      {/* 2. TIGA JENIS IKAN FLEKSIBEL (TAB SELECTOR) */}
+      {/* ============================================================ */}
+      <div className="p-4 rounded-3xl bg-slate-900/95 border border-slate-800 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-xs font-bold text-slate-200">Rincian Hasil Ikan</h3>
-            <p className="text-[11px] text-slate-400">Tambahkan setiap jenis ikan dan beratnya</p>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+              Pilih Jenis Ikan yang Ditimbang:
+            </span>
+            <span className="text-[11px] text-slate-500">
+              Pindah jenis ikan kapan saja tanpa kehilangan angka sebelumnya.
+            </span>
           </div>
           <button
-            onClick={handleAddItem}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-400 text-xs font-bold active:scale-95 transition-all"
+            type="button"
+            onClick={handleAddNewFishSlot}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-amber-400 border border-slate-700 text-xs font-bold active:scale-95 transition-all"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Tambah Jenis Ikan</span>
+            <span>Tambah Ikan</span>
           </button>
         </div>
 
-        {/* Quick fish name suggestions */}
-        <div className="flex items-center gap-1.5 overflow-x-auto py-1 text-slate-400 text-[11px] scrollbar-none">
-          <span className="shrink-0 text-slate-500">Pilihan cepat:</span>
-          {COMMON_FISH.map((fish) => (
-            <button
-              key={fish}
-              type="button"
-              onClick={() => {
-                setItems((prev) => [
-                  ...prev,
-                  {
-                    id: `item-${Date.now()}-${prev.length + 1}`,
-                    namaIkan: fish,
-                    beratKg: 0,
-                    confidence: 'high',
-                  },
-                ]);
-              }}
-              className="shrink-0 px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-750 border border-slate-700/80 text-slate-300 text-[10px] font-medium"
-            >
-              + {fish}
-            </button>
-          ))}
-        </div>
-
-        {/* Items Rows */}
-        <div className="space-y-2.5">
-          {items.map((item, idx) => (
-            <div
-              key={item.id}
-              className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-2.5"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 flex-1">
-                  <span className="text-xs font-mono font-bold text-amber-400">#{idx + 1}</span>
-                  <input
-                    type="text"
-                    placeholder="Nama Ikan (Cakalang, Tuna...)"
-                    value={item.namaIkan}
-                    onChange={(e) => handleUpdateItem(idx, 'namaIkan', e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs font-semibold focus:border-amber-500 focus:outline-none"
-                  />
+        {/* Tab Buttons for Fish Types */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {items.map((it, idx) => {
+            const isActive = idx === activeFishIndex;
+            const count = it.weights?.length || 0;
+            return (
+              <div
+                key={it.id}
+                onClick={() => setActiveFishIndex(idx)}
+                className={`relative p-3 rounded-2xl cursor-pointer transition-all border ${
+                  isActive
+                    ? 'bg-gradient-to-br from-amber-500/20 via-amber-500/10 to-slate-950 border-amber-500/60 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/40'
+                    : 'bg-slate-950/70 border-slate-800/80 hover:bg-slate-850/50'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-1 mb-1.5">
+                  <span className={`text-xs font-black truncate ${isActive ? 'text-amber-300' : 'text-slate-200'}`}>
+                    {it.namaIkan}
+                  </span>
+                  {items.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => handleRemoveFishSlot(idx, e)}
+                      className="text-slate-500 hover:text-red-400 p-0.5 rounded"
+                      title="Hapus jenis ikan ini"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
-                {items.length > 1 && (
-                  <button
-                    onClick={() => handleRemoveItem(idx)}
-                    className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-950/30 transition-colors"
-                    title="Hapus baris"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+
+                <div className="flex items-baseline justify-between text-xs">
+                  <span className="font-mono font-bold text-sky-300">
+                    {formatKg(it.beratKg)}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {count} box
+                  </span>
+                </div>
+
+                {it.hargaPerKg && it.subtotal ? (
+                  <div className="mt-1 pt-1 border-t border-slate-800/60 text-[10px] text-emerald-400 font-mono font-bold">
+                    {formatRupiah(it.subtotal)}
+                  </div>
+                ) : null}
+
+                {isActive && (
+                  <div className="absolute -top-1.5 right-3 px-2 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black uppercase tracking-wider shadow">
+                    Aktif
+                  </div>
                 )}
               </div>
+            );
+          })}
+        </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-[10px] text-slate-400 mb-1">Berat (kg)</label>
+        {/* Active Fish Detail Header: Rename & Presets */}
+        <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800/90 space-y-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 font-medium">Sedang menimbang:</span>
+              {isEditingFishName ? (
+                <div className="flex items-center gap-1.5">
                   <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    placeholder="0"
-                    value={item.beratKg || ''}
-                    onChange={(e) =>
-                      handleUpdateItem(idx, 'beratKg', parseFloat(e.target.value) || 0)
-                    }
-                    className="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs font-mono tabular-nums focus:border-amber-500 focus:outline-none"
+                    type="text"
+                    value={tempFishName}
+                    onChange={(e) => setTempFishName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSaveFishName()}
+                    className="px-2.5 py-1 rounded-lg bg-slate-900 border border-amber-500 text-xs font-bold text-white focus:outline-none"
+                    autoFocus
                   />
+                  <button
+                    type="button"
+                    onClick={handleSaveFishName}
+                    className="p-1 rounded bg-amber-500 text-slate-950"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingFishName(false)}
+                    className="p-1 rounded bg-slate-800 text-slate-400"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-[10px] text-slate-400 mb-1">Harga / kg (Rp)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    placeholder="Opsional"
-                    value={item.hargaPerKg || ''}
-                    onChange={(e) =>
-                      handleUpdateItem(idx, 'hargaPerKg', parseFloat(e.target.value) || 0)
-                    }
-                    className="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs font-mono tabular-nums focus:border-amber-500 focus:outline-none"
-                  />
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <strong className="text-sm font-black text-amber-300">
+                    {activeFish.namaIkan}
+                  </strong>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempFishName(activeFish.namaIkan);
+                      setIsEditingFishName(true);
+                    }}
+                    className="p-1 rounded text-slate-400 hover:text-amber-400"
+                    title="Ganti nama ikan"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-[10px] text-slate-400 mb-1">Subtotal (Rp)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    placeholder="0"
-                    value={item.subtotal || ''}
-                    onChange={(e) =>
-                      handleUpdateItem(idx, 'subtotal', parseFloat(e.target.value) || 0)
-                    }
-                    className="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs font-mono tabular-nums focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
+              )}
+            </div>
+
+            {/* Quick Fish Suggestions */}
+            <div className="flex items-center gap-1 overflow-x-auto text-[10px] scrollbar-none">
+              <span className="text-slate-500 shrink-0">Preset:</span>
+              {COMMON_FISH.slice(0, 5).map((fish) => (
+                <button
+                  key={fish}
+                  type="button"
+                  onClick={() => {
+                    setItems((prev) => {
+                      const updated = [...prev];
+                      updated[activeFishIndex] = { ...updated[activeFishIndex], namaIkan: fish };
+                      return updated;
+                    });
+                  }}
+                  className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"
+                >
+                  {fish}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ============================================================ */}
+          {/* 3. HARGA CUKUP SEKALI PER JENIS IKAN */}
+          {/* ============================================================ */}
+          <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                Harga per Kg {activeFish.namaIkan} (Rp):
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-xs font-mono text-slate-400">Rp</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="500"
+                  placeholder="Contoh: 20000"
+                  value={activeFish.hargaPerKg || ''}
+                  onChange={(e) =>
+                    handleUpdateHargaPerKg(e.target.value ? parseFloat(e.target.value) : undefined)
+                  }
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-xs font-mono font-bold focus:border-amber-500 focus:outline-none"
+                />
               </div>
+            </div>
+
+            <div className="text-left sm:text-right space-y-0.5">
+              <span className="text-[10px] text-slate-400 block font-medium">
+                Total Nilai {activeFish.namaIkan}:
+              </span>
+              <div className="text-xs font-mono">
+                <span className="text-slate-300">{formatKg(activeFish.beratKg)}</span>
+                <span className="text-slate-500"> × </span>
+                <span className="text-slate-300">
+                  {activeFish.hargaPerKg ? formatRupiah(activeFish.hargaPerKg) : 'Rp 0'}
+                </span>
+                <span className="text-slate-500"> = </span>
+                <strong className="text-emerald-400 text-sm font-black">
+                  {formatRupiah(activeFish.subtotal || 0)}
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          {/* ============================================================ */}
+          {/* 1. INPUT BERAT DENGAN ENTER */}
+          {/* ============================================================ */}
+          <div className="space-y-2 pt-1">
+            <label className="block text-[11px] font-bold text-amber-300 uppercase tracking-wider">
+              Input Berat Box (Kg):
+            </label>
+
+            <form
+              onSubmit={handleAddBoxWeight}
+              className="flex items-center gap-2"
+            >
+              <div className="relative flex-1">
+                <input
+                  ref={weightInputRef}
+                  type="number"
+                  step="any"
+                  inputMode="decimal"
+                  placeholder="Ketik angka lalu Enter (cth: 71)"
+                  value={weightInput}
+                  onChange={(e) => setWeightInput(e.target.value)}
+                  className="w-full px-4 py-3 rounded-2xl bg-slate-950 border-2 border-amber-500/60 text-white font-mono text-base font-black tracking-wide placeholder:text-slate-600 focus:border-amber-400 focus:outline-none shadow-inner"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="py-3 px-5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20 active:scale-95 transition-all shrink-0"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>TAMBAH</span>
+              </button>
+            </form>
+
+            <p className="text-[10px] text-slate-400">
+              💡 Tekan <strong>Enter</strong> pada keyboard HP untuk langsung memasukkan angka berikutnya tanpa menutup keyboard.
+            </p>
+          </div>
+
+          {/* ============================================================ */}
+          {/* 4. DAFTAR ANGKA SAJA (TANPA TULISAN BOX 1, BOX 2) + EDIT / HAPUS */}
+          {/* ============================================================ */}
+          <div className="space-y-2 pt-2 border-t border-slate-800/80">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-300">
+                Daftar Angka {activeFish.namaIkan} ({activeFish.weights?.length || 0} box):
+              </span>
+              {(activeFish.weights?.length || 0) > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearCurrentFishWeights}
+                  className="text-[10px] text-red-400 hover:text-red-300 font-semibold"
+                >
+                  Bersihkan Angka
+                </button>
+              )}
+            </div>
+
+            {(!activeFish.weights || activeFish.weights.length === 0) ? (
+              <div className="p-4 rounded-xl bg-slate-950/40 border border-dashed border-slate-800 text-center text-xs text-slate-500">
+                Belum ada angka timbangan untuk {activeFish.namaIkan}. Ketik angka box di atas lalu tekan Enter.
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-2.5 bg-slate-950 rounded-2xl border border-slate-800/80">
+                {activeFish.weights.map((w, wIdx) => {
+                  const isEditingThis = editingWeightIndex === wIdx;
+                  return isEditingThis ? (
+                    <div
+                      key={wIdx}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-amber-500/20 border border-amber-500 text-xs font-mono"
+                    >
+                      <input
+                        type="number"
+                        step="any"
+                        inputMode="decimal"
+                        value={editingWeightValue}
+                        onChange={(e) => setEditingWeightValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveEditedWeight(wIdx);
+                          if (e.key === 'Escape') setEditingWeightIndex(null);
+                        }}
+                        className="w-14 px-1 py-0.5 rounded bg-slate-900 border border-amber-400 text-amber-200 text-xs font-bold focus:outline-none"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSaveEditedWeight(wIdx)}
+                        className="p-0.5 text-emerald-400 hover:text-emerald-300"
+                        title="Simpan"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingWeightIndex(null)}
+                        className="p-0.5 text-slate-400 hover:text-red-400"
+                        title="Batal"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span
+                      key={wIdx}
+                      className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-amber-500/40 text-xs font-mono font-bold text-slate-100 shadow-sm transition-all"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingWeightIndex(wIdx);
+                          setEditingWeightValue(String(w));
+                        }}
+                        className="hover:text-amber-300"
+                        title="Klik untuk mengedit angka ini"
+                      >
+                        {w}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveBoxWeight(wIdx)}
+                        className="text-slate-500 hover:text-red-400 transition-colors p-0.5"
+                        title="Hapus angka ini"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================ */}
+      {/* RINGKASAN SELURUH JENIS IKAN */}
+      {/* ============================================================ */}
+      <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
+        <span className="text-xs font-bold text-slate-200 uppercase tracking-wider block">
+          Akumulasi Seluruh Jenis Ikan
+        </span>
+
+        <div className="space-y-1.5 text-xs">
+          {items.map((it, idx) => (
+            <div
+              key={it.id}
+              className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 font-mono"
+            >
+              <div>
+                <strong className="text-slate-200 font-sans">{it.namaIkan}</strong>
+                <span className="text-[11px] text-slate-400 ml-2">
+                  {formatKg(it.beratKg)} ({it.weights?.length || 0} box)
+                </span>
+                {it.hargaPerKg ? (
+                  <span className="text-[10px] text-slate-500 ml-1.5">
+                    @ {formatRupiah(it.hargaPerKg)}/kg
+                  </span>
+                ) : null}
+              </div>
+              <strong className="text-emerald-400">
+                {it.subtotal ? formatRupiah(it.subtotal) : 'Rp 0'}
+              </strong>
             </div>
           ))}
         </div>
 
-        {/* Tonnage summary badge */}
-        <div className="p-3 rounded-2xl bg-slate-950/90 border border-slate-800 flex items-center justify-between text-xs">
+        {/* Total Berat & Total Nilai Bar */}
+        <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs pt-2">
           <div>
-            <span className="text-slate-400">Total Berat: </span>
-            <strong className="text-white font-mono">{formatKg(calc.totalBeratKg)}</strong>
+            <span className="text-slate-400 block text-[10px]">TOTAL BERAT IKAN:</span>
+            <strong className="text-sky-300 font-mono text-sm">
+              {formatKg(calc.totalBeratKg)} ({formatTon(calc.totalTonase)})
+            </strong>
           </div>
-          <div>
-            <span className="text-slate-400">Tonase: </span>
-            <strong className="text-sky-300 font-mono text-sm">{formatTon(calc.totalTonase)}</strong>
+          <div className="text-right">
+            <span className="text-slate-400 block text-[10px]">TOTAL NILAI IKAN:</span>
+            <strong className="text-emerald-400 font-mono text-base font-black">
+              {formatRupiah(calc.totalHargaIkan)}
+            </strong>
           </div>
         </div>
       </div>
 
-      {/* Total Gross Revenue & Mode Toggle */}
-      <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-xs font-bold text-slate-200">Total Nilai Ikan (Kotor)</h3>
-            <p className="text-[11px] text-slate-400">
-              {useManualTotalHarga
-                ? 'Mode Manual: Nominal ditentukan langsung'
-                : 'Mode Otomatis: Dihitung dari subtotal rincian ikan'}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              if (useManualTotalHarga) {
-                setUseManualTotalHarga(false);
-                setManualTotalHarga('');
-              } else {
-                setUseManualTotalHarga(true);
-                setManualTotalHarga(String(computedRevenue || ''));
-              }
-            }}
-            className="text-[11px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1"
-          >
-            {useManualTotalHarga ? 'Hitung dari Rincian' : 'Koreksi Langsung'}
-          </button>
-        </div>
-
-        {useManualTotalHarga ? (
-          <div>
-            <label className="block text-[10px] text-amber-400 mb-1">
-              Nominal Total Nilai Ikan (Rp):
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="10000"
-              value={manualTotalHarga}
-              onChange={(e) => setManualTotalHarga(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-amber-500/50 text-amber-300 text-sm font-mono font-bold focus:border-amber-400 focus:outline-none"
-            />
-          </div>
-        ) : (
-          <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/80 flex items-center justify-between">
-            <span className="text-xs text-slate-400">Akumulasi Harga Ikan:</span>
-            <span className="text-base font-black text-emerald-400 font-mono tabular-nums">
-              {formatRupiah(computedRevenue)}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Breakdown Fees (Pemikul, ABK, Bongkar, Nyelam) with Manual Overrides */}
+      {/* ============================================================ */}
+      {/* ESTIMASI BIAYA-BIAYA RESMI & KOREKSI MANUAL */}
+      {/* ============================================================ */}
       <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -506,7 +923,7 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
         </div>
 
         {/* 1. PEMIKUL */}
-        <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-2">
+        <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-200">1. Pemikul</span>
@@ -515,7 +932,7 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
               </span>
               {pemikulIsManual && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
-                  Koreksi Manual
+                  Manual
                 </span>
               )}
             </div>
@@ -529,7 +946,7 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
                 className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold"
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>Kembali ke Otomatis</span>
+                <span>Otomatis</span>
               </button>
             ) : (
               <button
@@ -548,16 +965,19 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
           {pemikulIsManual ? (
             <input
               type="number"
+              min="0"
+              step="10000"
+              placeholder="Masukkan nominal manual..."
               value={manualPemikul}
               onChange={(e) => setManualPemikul(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-xl bg-slate-900 border border-amber-500/50 text-slate-100 text-xs font-mono tabular-nums focus:border-amber-400 focus:outline-none"
+              className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs font-mono focus:border-amber-500 focus:outline-none"
             />
           ) : (
-            <div className="flex items-center justify-between text-xs pt-1">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-slate-400 font-mono">
-                ({formatKg(calc.totalBeratKg)} / 1.000) &times; Rp300.000
+                {formatKg(calc.totalBeratKg)} × Rp300 / kg
               </span>
-              <span className="font-bold text-slate-100 font-mono tabular-nums">
+              <span className="font-bold text-slate-200 tabular-nums">
                 {formatRupiah(calc.biayaPemikul)}
               </span>
             </div>
@@ -565,16 +985,16 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
         </div>
 
         {/* 2. ABK */}
-        <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-2">
+        <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-200">2. ABK (Estimasi)</span>
+              <span className="text-xs font-bold text-slate-200">2. ABK</span>
               <span className="text-[10px] text-slate-500">
-                (Rp1.000.000 / Rp20 Juta)
+                (Rp1.000.000 / Rp20 Jt nilai ikan)
               </span>
               {abkIsManual && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
-                  Koreksi Manual
+                  Manual
                 </span>
               )}
             </div>
@@ -588,7 +1008,7 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
                 className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold"
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>Kembali ke Otomatis</span>
+                <span>Otomatis</span>
               </button>
             ) : (
               <button
@@ -607,17 +1027,19 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
           {abkIsManual ? (
             <input
               type="number"
+              min="0"
+              step="50000"
+              placeholder="Masukkan nominal manual..."
               value={manualAbk}
               onChange={(e) => setManualAbk(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-xl bg-slate-900 border border-amber-500/50 text-slate-100 text-xs font-mono tabular-nums focus:border-amber-400 focus:outline-none"
+              className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs font-mono focus:border-amber-500 focus:outline-none"
             />
           ) : (
-            <div className="flex items-center justify-between text-xs pt-1">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-slate-400 font-mono">
-                {settings.abkMetode === 'kelipatan_penuh' ? 'Kelipatan Penuh' : 'Proporsional'}{' '}
-                dari {formatRupiah(calc.totalHargaIkan)}
+                {formatRupiah(calc.totalHargaIkan)} × 5%
               </span>
-              <span className="font-bold text-slate-100 font-mono tabular-nums">
+              <span className="font-bold text-slate-200 tabular-nums">
                 {formatRupiah(calc.biayaAbk)}
               </span>
             </div>
@@ -625,16 +1047,16 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
         </div>
 
         {/* 3. BONGKAR */}
-        <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-2">
+        <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-200">3. Bongkar (Estimasi)</span>
+              <span className="text-xs font-bold text-slate-200">3. Bongkar</span>
               <span className="text-[10px] text-slate-500">
                 (&lt;1t Rp0, 1t Rp1,4 Jt, +Rp700rb/kelipatan ton)
               </span>
               {bongkarIsManual && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
-                  Koreksi Manual
+                  Manual
                 </span>
               )}
             </div>
@@ -648,7 +1070,7 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
                 className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold"
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>Kembali ke Otomatis</span>
+                <span>Otomatis</span>
               </button>
             ) : (
               <button
@@ -667,20 +1089,19 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
           {bongkarIsManual ? (
             <input
               type="number"
+              min="0"
+              step="100000"
+              placeholder="Masukkan nominal manual..."
               value={manualBongkar}
               onChange={(e) => setManualBongkar(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-xl bg-slate-900 border border-amber-500/50 text-slate-100 text-xs font-mono tabular-nums focus:border-amber-400 focus:outline-none"
+              className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs font-mono focus:border-amber-500 focus:outline-none"
             />
           ) : (
-            <div className="flex items-center justify-between text-xs pt-1">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-slate-400 font-mono">
-                {calc.totalTonase <= 0
-                  ? '0 tonase'
-                  : calc.totalTonase <= 2
-                  ? 'Tarif tetap 1 - 2 Ton'
-                  : `Rp1,4 Jt + (${(calc.totalTonase - 2).toFixed(3)}t &times; Rp700rb)`}
+                {calc.totalTonase < 1 ? '< 1 Ton (Rp0)' : `${formatTon(calc.totalTonase)} kelipatan penuh`}
               </span>
-              <span className="font-bold text-slate-100 font-mono tabular-nums">
+              <span className="font-bold text-slate-200 tabular-nums">
                 {formatRupiah(calc.biayaBongkar)}
               </span>
             </div>
@@ -688,16 +1109,16 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
         </div>
 
         {/* 4. NYELAM */}
-        <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-2">
+        <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-200">4. Nyelam (Estimasi)</span>
+              <span className="text-xs font-bold text-slate-200">4. Nyelam</span>
               <span className="text-[10px] text-slate-500">
-                (Mulai 2t: Rp600rb + Rp600rb/t)
+                (&ge;2t: Rp600rb + Rp600rb/t)
               </span>
               {nyelamIsManual && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
-                  Koreksi Manual
+                  Manual
                 </span>
               )}
             </div>
@@ -711,7 +1132,7 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
                 className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold"
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>Kembali ke Otomatis</span>
+                <span>Otomatis</span>
               </button>
             ) : (
               <button
@@ -730,18 +1151,19 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
           {nyelamIsManual ? (
             <input
               type="number"
+              min="0"
+              step="50000"
+              placeholder="Masukkan nominal manual..."
               value={manualNyelam}
               onChange={(e) => setManualNyelam(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-xl bg-slate-900 border border-amber-500/50 text-slate-100 text-xs font-mono tabular-nums focus:border-amber-400 focus:outline-none"
+              className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs font-mono focus:border-amber-500 focus:outline-none"
             />
           ) : (
-            <div className="flex items-center justify-between text-xs pt-1">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-slate-400 font-mono">
-                {calc.totalTonase < 2
-                  ? '< 2 Ton (Bebas Biaya Nyelam)'
-                  : `(${(calc.totalTonase - 1).toFixed(3)}t &times; Rp600rb)`}
+                {calc.totalTonase < 2 ? '< 2 Ton (Rp0)' : `(${formatTon(calc.totalTonase)} - 1) × Rp600rb`}
               </span>
-              <span className="font-bold text-slate-100 font-mono tabular-nums">
+              <span className="font-bold text-slate-200 tabular-nums">
                 {formatRupiah(calc.biayaNyelam)}
               </span>
             </div>
@@ -787,38 +1209,76 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
         )}
       </div>
 
-      {/* Attach Photo (Optional) */}
+      {/* ============================================================ */}
+      {/* 5. FOTO BUKU CATATAN WAJIB TETAP TERSEDIA */}
+      {/* ============================================================ */}
       <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-xs font-bold text-slate-200">Lampiran Foto Asli Buku Catatan</h3>
-            <p className="text-[11px] text-slate-400">Tersimpan lokal & aman di perangkat Anda</p>
+            <h3 className="text-xs font-bold text-slate-200">Foto Asli Buku Catatan</h3>
+            <p className="text-[11px] text-slate-400">
+              Foto buku asli disertakan saat berbagi gambar atau PDF
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-semibold"
-          >
-            <Camera className="w-3.5 h-3.5 text-amber-400" />
-            <span>{photoBase64 ? 'Ganti Foto' : 'Pilih Foto'}</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold active:scale-95 transition-all"
+            >
+              <Camera className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Kamera</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => galleryInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-semibold active:scale-95 transition-all border border-slate-700"
+            >
+              <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
+              <span>Galeri</span>
+            </button>
+          </div>
         </div>
 
         {photoBase64 && (
-          <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 p-1 flex items-center justify-center">
-            <img
-              src={photoBase64}
-              alt="Lampiran Buku Catatan"
-              className="max-h-48 object-contain rounded-xl"
-            />
-            <button
-              type="button"
-              onClick={() => setPhotoBase64(null)}
-              className="absolute top-3 right-3 p-1.5 rounded-full bg-slate-900/80 text-slate-300 hover:text-red-400"
-              title="Hapus lampiran foto"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span>Pratinjau Foto Asli</span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleRotatePhoto(-90)}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
+                  title="Putar Kiri"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRotatePhoto(90)}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
+                  title="Putar Kanan"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPhotoBase64(null)}
+                  className="p-1.5 rounded-lg bg-red-950/60 border border-red-900/50 text-red-300 hover:text-red-200"
+                  title="Hapus Foto"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="relative rounded-xl overflow-hidden bg-black border border-slate-800 flex items-center justify-center p-1">
+              <img
+                src={photoBase64}
+                alt="Lampiran Buku Catatan"
+                className="max-h-56 object-contain rounded-lg"
+              />
+            </div>
           </div>
         )}
       </div>

@@ -5,6 +5,7 @@ export interface FishItem {
   hargaPerKg?: number;
   subtotal?: number;
   confidence?: 'high' | 'low' | 'uncertain';
+  weights?: number[]; // Daftar berat per box dalam kg
 }
 
 export interface BookkeepingRecord {
