@@ -1,4 +1,4 @@
-import { AppSettings, CalculationResult, FishItem } from '../types';
+import { AppSettings, CalculationResult, FishItem, ProfitDistribution } from '../types';
 
 export const DEFAULT_FISH_PRESETS: string[] = [
   'Tongkol',
@@ -43,7 +43,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
   teksCatatanOtomatis:
     'Ini hanya estimasi digital dan bisa saja ada kesalahan karena dilakukan secara otomatis. Apabila ingin mencoba aplikasi buatan saya, silakan download: [LINK DOWNLOAD APLIKASI]',
-  linkDownloadAplikasi: '',
+  linkDownloadAplikasi:
+    'https://github.com/sodongmubarak-ux/Iswandi/releases/latest/download/Catatan-by-Iswandi.apk',
 
   mediaSosial: {
     tiktok: '',
@@ -239,6 +240,7 @@ export function calculateBookkeeping(
 
   const totalBiaya = biayaPemikul + biayaAbk + biayaBongkar + biayaNyelam;
   const bersih = totalHargaIkan - totalBiaya;
+  const { rumponBagian, kapalBagian } = calculateProfitDistribution(bersih);
 
   return {
     totalBeratKg,
@@ -251,16 +253,39 @@ export function calculateBookkeeping(
     totalBiaya,
     bersih,
     isNegativeNet: bersih < 0,
+    pembagianRumpon: rumponBagian,
+    pembagianKapal: kapalBagian,
+  };
+}
+
+/**
+ * Rumus Pembagian Hasil Bersih (Dibagi 3):
+ * Total Hasil Bersih akan dibagi 3 uangnya:
+ * - Rumpon: 1 bagian (1/3)
+ * - Kapal: 2 bagian (2/3)
+ * Contoh:
+ * Hasil bersih = 15.000.000
+ * Rumpon = 5.000.000
+ * Kapal = 10.000.000
+ */
+export function calculateProfitDistribution(bersih: number): ProfitDistribution {
+  const safeBersih = Number(bersih) || 0;
+  const rumponBagian = Math.round(safeBersih / 3);
+  const kapalBagian = safeBersih - rumponBagian;
+  return {
+    totalBersih: safeBersih,
+    rumponBagian,
+    kapalBagian,
   };
 }
 
 /**
  * MANDATORY FORMULA VERIFICATION TEST SUITE
- * Directly validates all rules defined in section 19 of user prompt.
+ * Directly validates all rules defined in user prompt.
  */
 export interface TestVerificationResult {
   title: string;
-  category: 'pemikul' | 'bongkar' | 'nyelam' | 'abk' | 'bersih';
+  category: 'pemikul' | 'bongkar' | 'nyelam' | 'abk' | 'bersih' | 'pembagian';
   inputDesc: string;
   expected: number;
   actual: number;
@@ -497,6 +522,45 @@ export function runFormulaVerificationTests(): {
     expected: 91600000,
     actual: fullSim.bersih,
     passed: bersihPassed,
+  });
+
+  // Uji Pembagian Hasil Bersih (Dibagi 3 Bagian: Rumpon 1, Kapal 2)
+  // Contoh Spesifik dari User: Hasil Bersih Rp15.000.000 -> Rumpon: Rp5.000.000, Kapal: Rp10.000.000
+  const dist1 = calculateProfitDistribution(15000000);
+  results.push({
+    title: 'Uji Pembagian Hasil Bersih Rp15.000.000 (Rumpon 1 Bagian)',
+    category: 'pembagian',
+    inputDesc: 'Rp 15.000.000 ÷ 3 × 1',
+    expected: 5000000,
+    actual: dist1.rumponBagian,
+    passed: dist1.rumponBagian === 5000000,
+  });
+  results.push({
+    title: 'Uji Pembagian Hasil Bersih Rp15.000.000 (Kapal 2 Bagian)',
+    category: 'pembagian',
+    inputDesc: 'Rp 15.000.000 ÷ 3 × 2',
+    expected: 10000000,
+    actual: dist1.kapalBagian,
+    passed: dist1.kapalBagian === 10000000,
+  });
+
+  // Contoh Tambahan: Rp30.000.000 -> Rumpon: Rp10.000.000, Kapal: Rp20.000.000
+  const dist2 = calculateProfitDistribution(30000000);
+  results.push({
+    title: 'Uji Pembagian Hasil Bersih Rp30.000.000 (Rumpon 1 Bagian)',
+    category: 'pembagian',
+    inputDesc: 'Rp 30.000.000 ÷ 3 × 1',
+    expected: 10000000,
+    actual: dist2.rumponBagian,
+    passed: dist2.rumponBagian === 10000000,
+  });
+  results.push({
+    title: 'Uji Pembagian Hasil Bersih Rp30.000.000 (Kapal 2 Bagian)',
+    category: 'pembagian',
+    inputDesc: 'Rp 30.000.000 ÷ 3 × 2',
+    expected: 20000000,
+    actual: dist2.kapalBagian,
+    passed: dist2.kapalBagian === 20000000,
   });
 
   const allPassed = results.every((r) => r.passed);

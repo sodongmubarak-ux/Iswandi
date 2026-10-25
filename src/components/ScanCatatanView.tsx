@@ -152,6 +152,7 @@ export const ScanCatatanView: React.FC<ScanCatatanViewProps> = ({
         namaIkan: parsed.fishType || 'Tongkol',
         beratKg: parsed.totalKg,
         confidence: detectedWeights.length > 0 ? 'high' : 'uncertain',
+        weights: detectedWeights,
       },
     ];
 
@@ -277,15 +278,17 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
   "items": [
     {
       "namaIkan": "Nama jenis ikan (Tongkol, Layang, Soret, Kunyitan, Katombong, Baga-Baga, Ikan Kuning, Campur, Lainnya, dll)",
-      "beratKg": 10.5,
+      "weights": [71, 72, 69.5, 70, 75],
+      "beratKg": 357.5,
       "hargaPerKg": 25000,
-      "subtotal": 262500,
+      "subtotal": 8937500,
       "confidence": "high"
     }
   ],
-  "totalHarga": 1500000,
+  "totalHarga": 8937500,
   "catatan": "Keterangan tambahan"
-}`;
+}
+Catatan Sangat Penting: Ekstrak SELURUH angka-angka timbangan yang tertulis di buku per keranjang/box ke dalam array "weights". Hitung "beratKg" dari penjumlahan angka-angka tersebut agar semua angka timbangan dapat dimunculkan di slip!`;
 
         // Coba model primary 3.8-flash, lalu fallback ke 3.1-flash-lite jika 503/429
         let geminiRes;
@@ -347,17 +350,38 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
         }
       }
 
-      // Map parsed items
+      // Map parsed items with full weights support
       const mappedItems: FishItem[] = Array.isArray(parsed.items)
-        ? parsed.items.map((it: { namaIkan?: string; beratKg?: number; hargaPerKg?: number; subtotal?: number; confidence?: string }, idx: number) => ({
-            id: `item-${Date.now()}-${idx}`,
-            namaIkan: it.namaIkan || 'Ikan Campur',
-            beratKg: Number(it.beratKg) || 0,
-            hargaPerKg: it.hargaPerKg ? Number(it.hargaPerKg) : undefined,
-            subtotal: it.subtotal ? Number(it.subtotal) : undefined,
-            confidence: it.confidence === 'uncertain' || it.confidence === 'low' ? 'uncertain' : 'high',
-          }))
+        ? parsed.items.map((it: any, idx: number) => {
+            let itemWeights: number[] = [];
+            if (Array.isArray(it.weights) && it.weights.length > 0) {
+              itemWeights = it.weights
+                .map((n: any) => Math.round(Number(n) * 10) / 10)
+                .filter((n: number) => !isNaN(n) && n > 0);
+            } else if (it.beratKg && Number(it.beratKg) > 0) {
+              itemWeights = [Math.round(Number(it.beratKg) * 10) / 10];
+            }
+            const itemTotalKg = itemWeights.length > 0
+              ? Math.round(itemWeights.reduce((a, b) => a + b, 0) * 10) / 10
+              : (Number(it.beratKg) || 0);
+
+            return {
+              id: `item-${Date.now()}-${idx}`,
+              namaIkan: it.namaIkan || 'Ikan Campur',
+              beratKg: itemTotalKg,
+              hargaPerKg: it.hargaPerKg ? Number(it.hargaPerKg) : undefined,
+              subtotal: it.subtotal ? Number(it.subtotal) : (it.hargaPerKg ? Math.round(itemTotalKg * Number(it.hargaPerKg)) : undefined),
+              confidence: it.confidence === 'uncertain' || it.confidence === 'low' ? 'uncertain' : 'high',
+              weights: itemWeights,
+            };
+          })
         : [];
+
+      // Collect detected weights into tallyWeights if any
+      const allDetectedWeights = mappedItems.flatMap((it) => it.weights || []);
+      if (allDetectedWeights.length > 0) {
+        setTallyWeights(allDetectedWeights);
+      }
 
       setScanResult({
         tanggal: parsed.tanggal && parsed.tanggal.length >= 8 ? parsed.tanggal : new Date().toISOString().split('T')[0],
@@ -405,11 +429,16 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
     setTallyWeights(nextWeights);
     setNewBasketInput('');
 
-    // Update item weight
-    const newTotal = nextWeights.reduce((a, b) => a + b, 0);
+    // Update item weight and weights array
+    const newTotal = Math.round(nextWeights.reduce((a, b) => a + b, 0) * 10) / 10;
     if (items.length > 0) {
       const nextItems = [...items];
-      nextItems[0] = { ...nextItems[0], beratKg: Math.round(newTotal * 10) / 10 };
+      nextItems[0] = {
+        ...nextItems[0],
+        weights: nextWeights,
+        beratKg: newTotal,
+        subtotal: nextItems[0].hargaPerKg ? Math.round(newTotal * nextItems[0].hargaPerKg) : undefined,
+      };
       setItems(nextItems);
     }
   };
@@ -417,10 +446,15 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
   const handleRemoveBasketWeight = (idx: number) => {
     const nextWeights = tallyWeights.filter((_, i) => i !== idx);
     setTallyWeights(nextWeights);
-    const newTotal = nextWeights.reduce((a, b) => a + b, 0);
+    const newTotal = Math.round(nextWeights.reduce((a, b) => a + b, 0) * 10) / 10;
     if (items.length > 0) {
       const nextItems = [...items];
-      nextItems[0] = { ...nextItems[0], beratKg: Math.round(newTotal * 10) / 10 };
+      nextItems[0] = {
+        ...nextItems[0],
+        weights: nextWeights,
+        beratKg: newTotal,
+        subtotal: nextItems[0].hargaPerKg ? Math.round(newTotal * nextItems[0].hargaPerKg) : undefined,
+      };
       setItems(nextItems);
     }
   };
@@ -499,6 +533,9 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
 
         totalBiaya: calc.totalBiaya,
         bersih: calc.bersih,
+
+        pembagianRumpon: calc.pembagianRumpon,
+        pembagianKapal: calc.pembagianKapal,
 
         keterangan: catatan,
         unreadableNotes: scanResult?.unreadableNotes,
@@ -1113,6 +1150,38 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
                   <span className="text-xl font-black text-amber-400 tabular-nums">
                     {formatRupiah(calc.bersih)}
                   </span>
+                </div>
+
+                {/* Pembagian Baru: Rumpon 1 Bagian & Kapal 2 Bagian */}
+                <div className="p-3 rounded-2xl bg-slate-950/90 border border-amber-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">
+                      ⚖️ Pembagian Bersih (Dibagi 3 Bagian)
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30">
+                      Rumpon 1 : Kapal 2
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="p-2.5 rounded-xl bg-slate-900 border border-amber-500/30">
+                      <span className="text-[10px] text-amber-300/80 block font-bold uppercase">
+                        Rumpon (1 Bagian)
+                      </span>
+                      <span className="text-base font-black text-amber-400 font-mono tabular-nums block mt-0.5">
+                        {formatRupiah(calc.pembagianRumpon)}
+                      </span>
+                      <span className="text-[9px] text-slate-500">1/3 hasil bersih</span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-900 border border-emerald-500/30">
+                      <span className="text-[10px] text-emerald-300/80 block font-bold uppercase">
+                        Kapal (2 Bagian)
+                      </span>
+                      <span className="text-base font-black text-emerald-400 font-mono tabular-nums block mt-0.5">
+                        {formatRupiah(calc.pembagianKapal)}
+                      </span>
+                      <span className="text-[9px] text-slate-500">2/3 hasil bersih</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 

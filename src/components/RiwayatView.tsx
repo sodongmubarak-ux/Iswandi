@@ -274,6 +274,18 @@ export const RiwayatView: React.FC<RiwayatViewProps> = ({
                 </div>
               </div>
 
+              {/* Profit Split Chip */}
+              <div className="flex items-center gap-2 pt-0.5 text-[11px] font-mono flex-wrap">
+                <span className="text-slate-400 text-[10px] uppercase font-bold">Bagi 3:</span>
+                <span className="text-amber-300 font-bold">
+                  Rumpon (1x): {formatRupiah(record.pembagianRumpon || Math.round(record.bersih / 3))}
+                </span>
+                <span className="text-slate-600">•</span>
+                <span className="text-emerald-300 font-bold">
+                  Kapal (2x): {formatRupiah(record.pembagianKapal || record.bersih - Math.round(record.bersih / 3))}
+                </span>
+              </div>
+
               {/* Fish Items Chips Preview */}
               <div className="flex flex-wrap gap-1.5 pt-1 text-xs text-slate-300">
                 {record.items?.map((item, idx) => (
@@ -283,6 +295,9 @@ export const RiwayatView: React.FC<RiwayatViewProps> = ({
                   >
                     {item.namaIkan}:{' '}
                     <strong className="text-slate-200">{formatKg(item.beratKg)}</strong>
+                    {item.weights && item.weights.length > 0 && (
+                      <span className="text-amber-400 ml-1 font-mono">({item.weights.length} box)</span>
+                    )}
                   </span>
                 ))}
               </div>

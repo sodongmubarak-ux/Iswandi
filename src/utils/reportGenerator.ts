@@ -4,7 +4,27 @@ import { Capacitor } from '@capacitor/core';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { AppSettings, BookkeepingRecord } from '../types';
-import { formatKg, formatRupiah, formatTon } from './calculator';
+import { calculateProfitDistribution, formatKg, formatRupiah, formatTon } from './calculator';
+
+/**
+ * Wrap all weight numbers into lines without truncating any numbers
+ */
+export function wrapWeightNumbers(weights: number[], maxChars = 80): string[] {
+  if (!weights || weights.length === 0) return [];
+  const lines: string[] = [];
+  let cur = '';
+  for (let i = 0; i < weights.length; i++) {
+    const token = i === 0 ? `${weights[i]}` : `, ${weights[i]}`;
+    if ((cur + token).length > maxChars) {
+      lines.push(cur);
+      cur = `${weights[i]}`;
+    } else {
+      cur += token;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
 
 export interface ShareOrDownloadOptions {
   record: BookkeepingRecord;
@@ -192,7 +212,13 @@ export async function generatePdfReport(
   } else {
     items.forEach((item, index) => {
       const hasWeights = Boolean(item.weights && item.weights.length > 0);
-      const rowHeight = hasWeights ? 10.5 : 7;
+      let splitWeights: string[] = [];
+      if (hasWeights) {
+        const weightsStr = `Angka timbangan (${item.weights!.length} box): ${item.weights!.join(', ')}`;
+        doc.setFontSize(6.5);
+        splitWeights = doc.splitTextToSize(weightsStr, tableW - colNo - 8);
+      }
+      const rowHeight = hasWeights ? 6.5 + splitWeights.length * 3.5 : 7;
       checkPageBreak(rowHeight + 1);
 
       const isEven = index % 2 === 0;
@@ -211,9 +237,7 @@ export async function generatePdfReport(
       if (hasWeights) {
         doc.setFontSize(6.5);
         doc.setTextColor(180, 83, 9);
-        const weightsStr = `(${item.weights!.length} box): ${item.weights!.join(', ')}`;
-        const truncatedStr = weightsStr.length > 55 ? `${weightsStr.slice(0, 52)}...` : weightsStr;
-        doc.text(truncatedStr, margin + colNo + 3, y + 8.5);
+        doc.text(splitWeights, margin + colNo + 3, y + 8.5);
         doc.setFontSize(8);
         doc.setTextColor(51, 65, 85);
       }
@@ -318,8 +342,44 @@ export async function generatePdfReport(
   doc.text('HASIL BERSIH (TOTAL HARGA - TOTAL BIAYA):', margin + 6, y + 9);
   doc.setFontSize(13);
   doc.text(formatRupiah(record.bersih), margin + tableW - 6, y + 9, { align: 'right' });
-
   y += 18;
+
+  // PEMBAGIAN HASIL BERSIH (DIBAGI 3 BAGIAN: RUMPON 1 & KAPAL 2)
+  const { rumponBagian, kapalBagian } = calculateProfitDistribution(record.bersih);
+  checkPageBreak(24);
+  doc.setFillColor(254, 252, 232); // Warm light yellow
+  doc.setDrawColor(234, 179, 8);
+  doc.roundedRect(margin, y, tableW, 20, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(133, 77, 14);
+  doc.text('PEMBAGIAN HASIL BERSIH (DIBAGI 3 BAGIAN):', margin + 6, y + 6);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(113, 63, 18);
+  doc.text('Uang hasil bersih dibagi 3: Rumpon dapat 1 bagian (1/3), Kapal dapat 2 bagian (2/3).', margin + 6, y + 11);
+
+  const halfTableW = (tableW - 12) / 2;
+  // Rumpon 1 bagian
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(161, 98, 7);
+  doc.text('RUMPON (1 Bagian):', margin + 6, y + 17);
+  doc.setFontSize(10);
+  doc.setTextColor(133, 77, 14);
+  doc.text(formatRupiah(rumponBagian), margin + 44, y + 17);
+
+  // Kapal 2 bagian
+  doc.setFontSize(8);
+  doc.setTextColor(21, 128, 61);
+  doc.text('KAPAL (2 Bagian):', margin + halfTableW + 10, y + 17);
+  doc.setFontSize(10);
+  doc.setTextColor(20, 83, 45);
+  doc.text(formatRupiah(kapalBagian), margin + halfTableW + 46, y + 17);
+
+  y += 24;
 
   // KETERANGAN
   if (record.keterangan) {
@@ -458,7 +518,13 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
   // Table
   contentRequiredHeight += 38; // Table title
   contentRequiredHeight += 52; // Table header
-  contentRequiredHeight += record.items.reduce((acc, it) => acc + (it.weights && it.weights.length > 0 ? 76 : 56), 0);
+  contentRequiredHeight += record.items.reduce((acc, it) => {
+    if (it.weights && it.weights.length > 0) {
+      const lines = wrapWeightNumbers(it.weights, 80);
+      return acc + 56 + (30 + lines.length * 22) + 12;
+    }
+    return acc + 56;
+  }, 0);
   contentRequiredHeight += 58; // Table total row
   contentRequiredHeight += 22; // Gap
 
@@ -469,6 +535,10 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
 
   // Total Bersih Netto Grand Banner
   contentRequiredHeight += 125; // Netto banner
+  contentRequiredHeight += 22; // Gap
+
+  // Pembagian Hasil Bersih (Dibagi 3 Bagian: Rumpon 1 & Kapal 2)
+  contentRequiredHeight += 145; // Profit split card
   contentRequiredHeight += 22; // Gap
 
   // Social & Footer
@@ -704,7 +774,9 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
   // Table Rows
   record.items.forEach((item, idx) => {
     const hasWeights = Boolean(item.weights && item.weights.length > 0);
-    const rowH = hasWeights ? 74 : 54;
+    const weightLines = hasWeights ? wrapWeightNumbers(item.weights!, 80) : [];
+    const weightBoxH = hasWeights ? 28 + weightLines.length * 22 : 0;
+    const rowH = hasWeights ? 54 + weightBoxH + 10 : 54;
 
     ctx.fillStyle = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
     ctx.fillRect(padding, curY, contentWidth, rowH);
@@ -720,32 +792,54 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
     ctx.fillStyle = '#64748b';
     ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(`${idx + 1}`, colX.no, curY + (hasWeights ? 30 : 34));
+    ctx.fillText(`${idx + 1}`, colX.no, curY + 34);
 
     ctx.fillStyle = '#0f172a';
     ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
-    ctx.fillText(item.namaIkan, colX.nama, curY + (hasWeights ? 27 : 34));
-
-    if (hasWeights) {
-      ctx.fillStyle = '#b45309';
-      ctx.font = 'bold 14px monospace';
-      const weightsStr = `(${item.weights!.length} box): ${item.weights!.join(', ')}`;
-      const truncated = weightsStr.length > 50 ? `${weightsStr.slice(0, 47)}...` : weightsStr;
-      ctx.fillText(truncated, colX.nama, curY + 54);
-    }
+    ctx.fillText(item.namaIkan, colX.nama, curY + 34);
 
     ctx.textAlign = 'right';
     ctx.fillStyle = '#0284c7';
     ctx.font = 'bold 22px monospace';
-    ctx.fillText(formatKg(item.beratKg), colX.berat, curY + (hasWeights ? 30 : 34));
+    ctx.fillText(formatKg(item.beratKg), colX.berat, curY + 34);
 
     ctx.fillStyle = '#334155';
     ctx.font = 'bold 18px monospace';
-    ctx.fillText(item.hargaPerKg ? formatRupiah(item.hargaPerKg) : '-', colX.harga, curY + (hasWeights ? 30 : 34));
+    ctx.fillText(item.hargaPerKg ? formatRupiah(item.hargaPerKg) : '-', colX.harga, curY + 34);
 
     ctx.fillStyle = item.subtotal ? '#047857' : '#64748b';
     ctx.font = 'bold 22px monospace';
-    ctx.fillText(item.subtotal ? formatRupiah(item.subtotal) : '-', colX.subtotal, curY + (hasWeights ? 30 : 34));
+    ctx.fillText(item.subtotal ? formatRupiah(item.subtotal) : '-', colX.subtotal, curY + 34);
+
+    // Render Full List of Individual Weight Numbers (Scanned & Manual)
+    if (hasWeights) {
+      const boxX = colX.nama;
+      const boxW = contentWidth - (colX.nama - padding) - 16;
+      const boxY = curY + 48;
+
+      ctx.fillStyle = '#fffbeb';
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(boxX, boxY, boxW, weightBoxH, 10);
+      } else {
+        ctx.rect(boxX, boxY, boxW, weightBoxH);
+      }
+      ctx.fill();
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#b45309';
+      ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
+      ctx.fillText(`📦 Angka Timbangan (${item.weights!.length} Box / Keranjang):`, boxX + 12, boxY + 19);
+
+      ctx.fillStyle = '#92400e';
+      ctx.font = 'bold 14px monospace';
+      weightLines.forEach((wLine, lIdx) => {
+        ctx.fillText(wLine, boxX + 12, boxY + 39 + lIdx * 22);
+      });
+    }
 
     curY += rowH;
   });
@@ -893,6 +987,85 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
   ctx.fillText(formatRupiah(record.bersih), padding + contentWidth - 24, curY + 74);
 
   curY += nettoH + 20 + gapBonus;
+
+  // 7.5 Section: PEMBAGIAN HASIL BERSIH (DIBAGI 3 BAGIAN: RUMPON 1 & KAPAL 2)
+  const { rumponBagian, kapalBagian } = calculateProfitDistribution(record.bersih);
+  const splitH = 142;
+  ctx.fillStyle = '#fefce8'; // Warm Amber/Yellow
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(padding, curY, contentWidth, splitH, 18);
+  } else {
+    ctx.rect(padding, curY, contentWidth, splitH);
+  }
+  ctx.fill();
+  ctx.strokeStyle = '#ca8a04';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Header Title
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#854d0e';
+  ctx.font = '900 18px system-ui, -apple-system, sans-serif';
+  ctx.fillText('⚖️ PEMBAGIAN HASIL BERSIH (DIBAGI 3 BAGIAN)', padding + 24, curY + 34);
+
+  // Subtitle formula
+  ctx.fillStyle = '#713f12';
+  ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+  ctx.fillText('Rumus: Uang bersih dibagi 3 ➔ Rumpon: 1 Bagian (1/3) & Kapal: 2 Bagian (2/3)', padding + 24, curY + 58);
+
+  // Sub-cards: Rumpon & Kapal
+  const splitCardW = (contentWidth - 48 - 18) / 2;
+  const splitCardY = curY + 70;
+  const splitCardH = 58;
+
+  // Box Rumpon (1 Bagian)
+  const rumponBoxX = padding + 24;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(rumponBoxX, splitCardY, splitCardW, splitCardH, 12);
+  } else {
+    ctx.rect(rumponBoxX, splitCardY, splitCardW, splitCardH);
+  }
+  ctx.fill();
+  ctx.strokeStyle = '#fde047';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#a16207';
+  ctx.font = '900 13px system-ui, -apple-system, sans-serif';
+  ctx.fillText('RUMPON (1 BAGIAN):', rumponBoxX + 16, splitCardY + 22);
+
+  ctx.fillStyle = '#854d0e';
+  ctx.font = '900 26px monospace';
+  ctx.fillText(formatRupiah(rumponBagian), rumponBoxX + 16, splitCardY + 48);
+
+  // Box Kapal (2 Bagian)
+  const kapalBoxX = rumponBoxX + splitCardW + 18;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(kapalBoxX, splitCardY, splitCardW, splitCardH, 12);
+  } else {
+    ctx.rect(kapalBoxX, splitCardY, splitCardW, splitCardH);
+  }
+  ctx.fill();
+  ctx.strokeStyle = '#86efac';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#15803d';
+  ctx.font = '900 13px system-ui, -apple-system, sans-serif';
+  ctx.fillText('KAPAL (2 BAGIAN):', kapalBoxX + 16, splitCardY + 22);
+
+  ctx.fillStyle = '#14532d';
+  ctx.font = '900 26px monospace';
+  ctx.fillText(formatRupiah(kapalBagian), kapalBoxX + 16, splitCardY + 48);
+
+  curY += splitH + 20 + gapBonus;
 
   // 8. Social Media Info
   const fbLink = settings.mediaSosial?.facebook || 'https://www.facebook.com/1swandi';

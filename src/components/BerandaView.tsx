@@ -99,13 +99,21 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
               : '0 kg (0 Ton)'}
           </p>
 
-          <div className="flex items-center gap-2 mt-1.5 text-[11px] text-slate-300">
+          <div className="flex items-center gap-2 mt-1.5 text-[11px] text-slate-300 flex-wrap">
             <span className="text-slate-400 text-[10px]">Rumpon:</span>
             <span className="font-semibold text-amber-300/90 text-xs">{latestRumpon}</span>
             {latestTanggal && (
               <>
                 <span className="text-slate-600">•</span>
                 <span className="text-slate-400 font-mono text-[10px]">{latestTanggal}</span>
+              </>
+            )}
+            {latestRecord && (
+              <>
+                <span className="text-slate-600">•</span>
+                <span className="text-emerald-300 font-mono text-[10px] font-bold">
+                  Bersih: {formatRupiah(latestRecord.bersih)} (Rumpon 1x: {formatRupiah(latestRecord.pembagianRumpon || Math.round(latestRecord.bersih / 3))} | Kapal 2x: {formatRupiah(latestRecord.pembagianKapal || latestRecord.bersih - Math.round(latestRecord.bersih / 3))})
+                </span>
               </>
             )}
           </div>
@@ -248,6 +256,9 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                     <span className="text-slate-400">
                       {record.items?.length || 0} jenis ikan
                     </span>
+                  </div>
+                  <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                    Rumpon: <span className="text-amber-300 font-bold">{formatRupiah(record.pembagianRumpon || Math.round(record.bersih / 3))}</span> · Kapal: <span className="text-emerald-300 font-bold">{formatRupiah(record.pembagianKapal || record.bersih - Math.round(record.bersih / 3))}</span>
                   </div>
                 </div>
 

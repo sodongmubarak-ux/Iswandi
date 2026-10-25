@@ -47,6 +47,9 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
 }) => {
   const [formData, setFormData] = useState<AppSettings>(() => ({
     ...initialSettings,
+    linkDownloadAplikasi:
+      initialSettings.linkDownloadAplikasi ||
+      'https://github.com/sodongmubarak-ux/Iswandi/releases/latest/download/Catatan-by-Iswandi.apk',
     fishPresets: initialSettings.fishPresets && initialSettings.fishPresets.length > 0
       ? initialSettings.fishPresets
       : [...DEFAULT_FISH_PRESETS],
@@ -1188,17 +1191,31 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                   <Smartphone className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="text-xs font-bold text-white block">Catatan by Iswandi APK (v1.0.5)</span>
-                  <span className="text-[10px] text-slate-400">Unduh langsung ke HP Android</span>
+                  <span className="text-xs font-bold text-white block">Catatan by Iswandi APK (Versi Android)</span>
+                  <span className="text-[10px] text-slate-400">Unduh langsung ke HP Android · 100% Offline & Cepat</span>
                 </div>
               </div>
-              <a
-                href="https://github.com/sodongmubarak-ux/Iswandi/releases/download/v1.0.5/Catatan-by-Iswandi.apk"
-                className="py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all whitespace-nowrap"
-              >
-                <Download className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Unduh File APK</span>
-              </a>
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-center">
+                <a
+                  href="https://github.com/sodongmubarak-ux/Iswandi/releases/latest/download/Catatan-by-Iswandi.apk"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all whitespace-nowrap"
+                >
+                  <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Unduh APK Terbaru</span>
+                </a>
+                <a
+                  href="https://github.com/sodongmubarak-ux/Iswandi/releases"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 font-semibold text-xs flex items-center gap-1.5 border border-slate-700 active:scale-95 transition-all whitespace-nowrap"
+                  title="Lihat seluruh daftar rilis dan versi APK di GitHub"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Semua Versi</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>

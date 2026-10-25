@@ -18,7 +18,7 @@ import {
   shareFile,
   downloadFile,
 } from '../utils/reportGenerator';
-import { formatKg, formatRupiah, formatTon } from '../utils/calculator';
+import { calculateProfitDistribution, formatKg, formatRupiah, formatTon } from '../utils/calculator';
 import { getPhoto } from '../db/indexedDB';
 
 interface ReportModalProps {
@@ -464,6 +464,49 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
                 {formatRupiah(record.bersih)}
               </span>
             </div>
+
+            {/* Pembagian Baru: Rumpon 1 Bagian & Kapal 2 Bagian */}
+            {(() => {
+              const { rumponBagian, kapalBagian } = calculateProfitDistribution(record.bersih);
+              return (
+                <div className="p-4 rounded-2xl bg-amber-50/90 border-2 border-amber-400 space-y-2.5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-amber-950 uppercase tracking-wide">
+                      ⚖️ Pembagian Hasil Bersih (Dibagi 3 Bagian)
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                      Rumpon 1 : Kapal 2
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-amber-900/90 leading-tight">
+                    Total hasil bersih <strong className="font-mono text-amber-950">{formatRupiah(record.bersih)}</strong> dibagi menjadi 3 bagian:
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="p-3 rounded-xl bg-white border border-amber-300 text-left space-y-0.5">
+                      <span className="text-[10px] font-bold text-amber-800 uppercase block tracking-wider">
+                        Rumpon (1 Bagian)
+                      </span>
+                      <span className="text-lg sm:text-xl font-black text-amber-900 font-mono tabular-nums block">
+                        {formatRupiah(rumponBagian)}
+                      </span>
+                      <span className="text-[9px] text-slate-500 block">1/3 dari hasil bersih</span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white border border-emerald-300 text-left space-y-0.5">
+                      <span className="text-[10px] font-bold text-emerald-800 uppercase block tracking-wider">
+                        Kapal (2 Bagian)
+                      </span>
+                      <span className="text-lg sm:text-xl font-black text-emerald-900 font-mono tabular-nums block">
+                        {formatRupiah(kapalBagian)}
+                      </span>
+                      <span className="text-[9px] text-slate-500 block">2/3 dari hasil bersih</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Keterangan */}
             {record.keterangan && (

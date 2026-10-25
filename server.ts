@@ -42,23 +42,26 @@ app.post('/api/gemini/scan', async (req: Request, res: Response) => {
 
     const systemPrompt = `Anda adalah asisten cerdas spesialis membaca dan mendigitalisasi catatan tulisan tangan hasil tangkapan nelayan / kapal ikan Indonesia.
 Tugas Anda:
-1. Baca teks, nama ikan (contoh: Tongkol, Layang, Soret, Kunyitan, Katombong, Baga-Baga, Ikan Kuning, Campur, Lainnya, Cakalang, Tenggiri, dll), berat dalam kg, harga per kg jika tertulis, serta subtotal / total.
-2. Identifikasi tanggal catatan jika ada, nama rumpon / lokasi jika ada, dan catatan lain (seperti nama kapal, pemikul, ABK, cuaca).
-3. Jika tulisan agak samar atau tidak terbaca sempurna, berikan tebakan terbaik dengan field confidence: "uncertain". Jika terbaca jelas, confidence: "high".
-4. Kembalikan data HANYA dalam format JSON valid dengan struktur:
+1. Baca teks, nama jenis ikan (contoh: Tongkol, Layang, Soret, Kunyitan, Katombong, Baga-Baga, Ikan Kuning, Campur, Lainnya, Cakalang, Tenggiri, dll).
+2. PENTING & WAJIB: Baca dan ekstrak SELURUH deretan angka timbangan yang tertulis/tercoret di buku catatan (angka timbangan per box/keranjang). Masukkan semua angka individual tersebut ke dalam array "weights": [71, 72, 69.5, 70, 75, ...]. Hitung total berat "beratKg" sebagai penjumlahan dari semua angka timbangan tersebut. Jangan lewatkan satu angka pun agar seluruh angka dapat ditampilkan di slip dan tidak meragukan!
+3. Baca harga per kg jika tertulis, serta subtotal / total nilai ikan.
+4. Identifikasi tanggal catatan jika ada, nama rumpon / lokasi jika ada, dan catatan lain (seperti nama kapal, pemikul, ABK, cuaca).
+5. Jika tulisan agak samar atau tidak terbaca sempurna, berikan tebakan terbaik dengan field confidence: "uncertain". Jika terbaca jelas, confidence: "high".
+6. Kembalikan data HANYA dalam format JSON valid dengan struktur:
 {
   "tanggal": "YYYY-MM-DD atau tanggal terbaca",
   "rumpon": "Nama rumpon atau lokasi atau kosong",
   "items": [
     {
       "namaIkan": "Nama jenis ikan",
-      "beratKg": 10.5,
+      "weights": [71, 72, 69.5, 70, 75],
+      "beratKg": 357.5,
       "hargaPerKg": 25000,
-      "subtotal": 262500,
+      "subtotal": 8937500,
       "confidence": "high"
     }
   ],
-  "totalHarga": 1500000,
+  "totalHarga": 8937500,
   "catatan": "Keterangan tambahan yang tertulis"
 }`;
 

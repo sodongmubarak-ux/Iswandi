@@ -34,6 +34,10 @@ export interface BookkeepingRecord {
   totalBiaya: number;
   bersih: number;
 
+  // Pembagian Hasil Bersih (Dibagi 3: Rumpon 1 bagian, Kapal 2 bagian)
+  pembagianRumpon?: number;
+  pembagianKapal?: number;
+
   keterangan: string;
   fotoAsliId?: string; // ID reference in indexedDB foto store
   fotoAsliBase64?: string; // Optional cached base64 or objectUrl
@@ -89,6 +93,12 @@ export interface AppSettings {
   fishPresets?: string[];
 }
 
+export interface ProfitDistribution {
+  totalBersih: number;
+  rumponBagian: number; // 1 bagian (1/3)
+  kapalBagian: number;  // 2 bagian (2/3)
+}
+
 export interface CalculationResult {
   totalBeratKg: number;
   totalTonase: number;
@@ -100,4 +110,6 @@ export interface CalculationResult {
   totalBiaya: number;
   bersih: number;
   isNegativeNet: boolean;
+  pembagianRumpon: number; // 1 bagian (1/3)
+  pembagianKapal: number;  // 2 bagian (2/3)
 }

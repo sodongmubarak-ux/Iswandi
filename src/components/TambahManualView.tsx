@@ -488,6 +488,9 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
         totalBiaya: calc.totalBiaya,
         bersih: calc.bersih,
 
+        pembagianRumpon: calc.pembagianRumpon,
+        pembagianKapal: calc.pembagianKapal,
+
         keterangan,
         createdAt: initialData?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -1282,6 +1285,46 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
             </div>
           </div>
         )}
+      </div>
+
+      {/* PEMBAGIAN HASIL BERSIH (DIBAGI 3 BAGIAN: RUMPON 1 & KAPAL 2) */}
+      <div className="p-4 rounded-3xl bg-slate-900/90 border border-amber-500/40 space-y-3 shadow-lg">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black text-amber-300 uppercase tracking-wider">
+              ⚖️ Pembagian Hasil Bersih (Dibagi 3 Bagian)
+            </span>
+          </div>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            Rumpon 1 : Kapal 2
+          </span>
+        </div>
+
+        <p className="text-[11px] text-slate-400">
+          Uang hasil bersih <strong className="text-white font-mono">{formatRupiah(calc.bersih)}</strong> dibagi rata 3 bagian:
+        </p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3.5 rounded-2xl bg-slate-950 border border-amber-500/40 space-y-1">
+            <span className="text-[10px] text-amber-300/90 font-bold uppercase block tracking-wider">
+              Rumpon (1 Bagian)
+            </span>
+            <span className="text-xl font-black text-amber-400 font-mono tabular-nums block">
+              {formatRupiah(calc.pembagianRumpon)}
+            </span>
+            <span className="text-[10px] text-slate-500 block">1/3 dari total bersih</span>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-slate-950 border border-emerald-500/40 space-y-1">
+            <span className="text-[10px] text-emerald-300/90 font-bold uppercase block tracking-wider">
+              Kapal (2 Bagian)
+            </span>
+            <span className="text-xl font-black text-emerald-400 font-mono tabular-nums block">
+              {formatRupiah(calc.pembagianKapal)}
+            </span>
+            <span className="text-[10px] text-slate-500 block">2/3 dari total bersih</span>
+          </div>
+        </div>
       </div>
 
       {/* ============================================================ */}
