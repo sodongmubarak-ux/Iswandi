@@ -250,85 +250,67 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
             ref={slipRef}
             className="max-w-xl mx-auto rounded-3xl bg-white border-4 border-slate-900 p-5 sm:p-7 shadow-2xl text-slate-900 space-y-5"
           >
-            {/* Header Brand */}
-            <div className="border-b-2 border-slate-200 pb-4 text-center space-y-1">
-              <span className="text-[11px] font-black text-sky-700 tracking-widest uppercase">
-                PEMBUKUAN HASIL TANGKAPAN IKAN HARIAN
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight">
-                {settings.reportTitle || 'CATATAN BY ISWANDI'}
-              </h2>
-              {settings.ownerName && (
-                <p className="text-xs font-bold text-slate-500">Pengelola: {settings.ownerName}</p>
-              )}
-            </div>
-
-            {/* Slip Metadata */}
+            {/* 1. Bagian Atas: Langsung Tanggal dan Nama Rumpon (Hapus Header Catatan by Iswandi) */}
             <div className="grid grid-cols-2 gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
               <div>
-                <span className="text-[10px] text-slate-500 block font-bold uppercase">TANGGAL:</span>
+                <span className="text-[10px] text-slate-500 block font-bold uppercase tracking-wider">TANGGAL:</span>
                 <span className="text-sm font-bold text-slate-900 font-mono">{record.tanggal || '-'}</span>
               </div>
               <div className="text-right">
-                <span className="text-[10px] text-slate-500 block font-bold uppercase">RUMPON / LOKASI:</span>
-                <span className="text-sm font-black text-sky-700">{record.rumpon || '-'}</span>
+                <span className="text-[10px] text-slate-500 block font-bold uppercase tracking-wider">NAMA RUMPON:</span>
+                <span className="text-sm font-black text-sky-700">{(record.rumpon || '-').toUpperCase()}</span>
               </div>
             </div>
 
-            {/* HERO HIGHLIGHT: TOTAL BERAT KESELURUHAN IKAN */}
-            <div className="p-4 rounded-2xl bg-sky-50 border-2 border-sky-500 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-sm">
-              <div>
-                <span className="text-[11px] font-black text-sky-800 uppercase tracking-wider block">
-                  ⚖️ TOTAL BERAT KESELURUHAN IKAN:
-                </span>
-                <span className="text-2xl sm:text-3xl font-black text-sky-950 font-mono">
-                  {formatKg(record.totalBeratKg)} ({formatTon(record.totalTonase)})
-                </span>
-              </div>
-              <div className="sm:text-right">
-                <span className="text-[10px] font-bold text-emerald-800 uppercase block">Total Nilai Kotor:</span>
-                <span className="text-xl font-black text-emerald-700 font-mono">
-                  {formatRupiah(record.totalHarga)}
-                </span>
-              </div>
-            </div>
-
-            {/* FOTO ASLI CATATAN TULISAN TANGAN */}
+            {/* 2. Setelah itu Foto Asli / Tulisan Tangan */}
             {photoBase64 && (
-              <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+              <div className="space-y-2 p-3 rounded-2xl bg-slate-50 border border-slate-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Camera className="w-4 h-4 text-slate-700" />
-                    <span className="text-xs font-black text-slate-900 tracking-wide uppercase">
-                      1. Foto Asli Buku Catatan (Tulisan Tangan)
+                    <span className="text-xs font-bold text-slate-800 tracking-wide">
+                      Foto Asli / Tulisan Tangan
                     </span>
                   </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-300">
-                    Foto Asli
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-semibold">
+                    Dokumentasi
                   </span>
                 </div>
                 <div className="rounded-xl overflow-hidden border border-slate-300 bg-white flex items-center justify-center p-1 shadow-inner">
                   <img
                     src={photoBase64}
-                    alt="Foto Asli Buku Catatan Ikan"
-                    className="w-full max-h-80 object-contain rounded-lg"
+                    alt="Foto Asli Catatan Tulisan Tangan"
+                    className="w-full max-h-72 object-contain rounded-lg"
                     crossOrigin="anonymous"
                   />
                 </div>
               </div>
             )}
 
-            {/* VERSI SCAN AI & PEMBUKUAN DIGITAL */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-                  <span>{photoBase64 ? '2. Rincian Hasil Ikan (Scan Digital AI)' : '1. Rincian Hasil Ikan'}</span>
+            {/* 3. Dibawahnya: Total Berat Ikan (agak besar) & total uang ikan (tulisan kecil di sampingnya) */}
+            <div className="p-3.5 rounded-2xl bg-sky-50/80 border border-sky-300 flex items-center justify-between gap-2 shadow-sm">
+              <div>
+                <span className="text-[11px] font-bold text-sky-800 uppercase tracking-wide block">
+                  Total Berat Ikan:
                 </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-bold border border-sky-300">
-                  Scan Digital
+                <span className="text-xl sm:text-2xl font-black text-sky-950 font-mono">
+                  {formatKg(record.totalBeratKg)} ({formatTon(record.totalTonase)})
                 </span>
               </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-500 block">Total Uang Ikan:</span>
+                <span className="text-sm sm:text-base font-bold text-emerald-700 font-mono">
+                  {formatRupiah(record.totalHarga)}
+                </span>
+              </div>
+            </div>
+
+            {/* 4. Lalu Rincian Hasil Ikan / Scan */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                <span>Rincian Hasil Ikan / Scan</span>
+              </span>
               <div className="overflow-hidden rounded-2xl border border-slate-300 shadow-sm">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-900 text-white font-bold">
@@ -347,8 +329,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
                         <td className="py-2.5 px-3 font-sans font-bold text-slate-900">
                           <div>{item.namaIkan}</div>
                           {item.weights && item.weights.length > 0 && (
-                            <div className="text-[10px] text-amber-700 font-mono mt-0.5 font-semibold">
-                              ({item.weights.length} box): {item.weights.join(', ')}
+                            <div className="text-[10px] text-amber-800 font-mono mt-0.5 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-normal">
+                              Timbangan ({item.weights.length} Box): {item.weights.join(', ')} kg
                             </div>
                           )}
                         </td>
@@ -364,16 +346,16 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot className="bg-sky-50 font-black border-t-2 border-sky-400 text-xs">
+                  <tfoot className="bg-slate-100 font-bold border-t border-slate-300 text-xs">
                     <tr>
-                      <td colSpan={2} className="py-3 px-3 text-slate-900">
+                      <td colSpan={2} className="py-2.5 px-3 text-slate-900 font-sans">
                         TOTAL IKAN
                       </td>
-                      <td className="py-3 px-3 text-right text-sky-800 font-mono text-sm">
+                      <td className="py-2.5 px-3 text-right text-sky-800 font-mono">
                         {formatKg(record.totalBeratKg)} ({formatTon(record.totalTonase)})
                       </td>
-                      <td className="py-3 px-3 text-right text-slate-400">-</td>
-                      <td className="py-3 px-3 text-right text-emerald-700 font-mono text-sm">
+                      <td className="py-2.5 px-3 text-right text-slate-400">-</td>
+                      <td className="py-2.5 px-3 text-right text-emerald-700 font-mono">
                         {formatRupiah(record.totalHarga)}
                       </td>
                     </tr>
@@ -382,156 +364,113 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
               </div>
             </div>
 
-            {/* Fees Table */}
+            {/* 5. Lanjut Operasional */}
             <div className="space-y-2">
-              <span className="text-xs font-black text-rose-800">
-                {photoBase64 ? '3. Potongan Biaya Operasional (Estimasi)' : '2. Potongan Biaya Operasional'}
+              <span className="text-xs font-bold text-rose-800">
+                Operasional
               </span>
-              <div className="p-3.5 rounded-2xl bg-rose-50/70 border border-rose-200 space-y-2 text-xs">
+              <div className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-200 space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-800 font-medium">
+                  <span className="text-slate-800">
                     Pemikul <span className="text-[10px] text-slate-500">(Rp300rb / 1.000 kg)</span>
                   </span>
                   <span className="font-mono font-bold text-rose-700 tabular-nums">
                     {formatRupiah(record.biayaPemikul)}
-                    {record.biayaPemikulIsManual && (
-                      <span className="text-[10px] text-amber-700 ml-1">(Koreksi)</span>
-                    )}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-800 font-medium">
-                    ABK (Estimasi){' '}
-                    <span className="text-[10px] text-slate-500">
-                      ({settings.abkMetode === 'kelipatan_penuh' ? 'Kelipatan Penuh' : 'Proporsional'})
-                    </span>
+                  <span className="text-slate-800">
+                    ABK (Estimasi)
                   </span>
                   <span className="font-mono font-bold text-rose-700 tabular-nums">
                     {formatRupiah(record.biayaAbk)}
-                    {record.biayaAbkIsManual && (
-                      <span className="text-[10px] text-amber-700 ml-1">(Koreksi)</span>
-                    )}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-800 font-medium">
-                    Bongkar (Estimasi){' '}
-                    <span className="text-[10px] text-slate-500">
-                      (&lt;1t Rp0, 1t Rp1,4 Jt, +Rp700rb/kelipatan ton)
-                    </span>
+                  <span className="text-slate-800">
+                    Bongkar (Estimasi)
                   </span>
                   <span className="font-mono font-bold text-rose-700 tabular-nums">
                     {formatRupiah(record.biayaBongkar)}
-                    {record.biayaBongkarIsManual && (
-                      <span className="text-[10px] text-amber-700 ml-1">(Koreksi)</span>
-                    )}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-800 font-medium">
-                    Nyelam (Estimasi){' '}
-                    <span className="text-[10px] text-slate-500">
-                      (&ge;2t: Rp600rb + Rp600rb/t)
-                    </span>
+                  <span className="text-slate-800">
+                    Nyelam (Estimasi)
                   </span>
                   <span className="font-mono font-bold text-rose-700 tabular-nums">
                     {formatRupiah(record.biayaNyelam)}
-                    {record.biayaNyelamIsManual && (
-                      <span className="text-[10px] text-amber-700 ml-1">(Koreksi)</span>
-                    )}
                   </span>
                 </div>
 
-                <div className="pt-2 border-t border-rose-200 flex items-center justify-between font-black text-rose-800 text-sm">
-                  <span>Total Biaya Potongan:</span>
-                  <span className="font-mono tabular-nums">{formatRupiah(record.totalBiaya)}</span>
+                <div className="pt-2 border-t border-rose-200 flex items-center justify-between font-bold text-rose-900 text-xs">
+                  <span>Total Operasional:</span>
+                  <span className="font-mono tabular-nums text-sm">{formatRupiah(record.totalBiaya)}</span>
                 </div>
               </div>
             </div>
 
-            {/* Bersih Highlight Banner */}
-            <div className="p-4 rounded-2xl bg-emerald-50 border-3 border-emerald-500 flex items-center justify-between shadow-sm">
+            {/* 6. Total Bersih (Tulisan standar saja, tidak usah terlalu besar) */}
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-400 flex items-center justify-between shadow-sm">
               <div>
-                <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest block">
-                  HASIL BERSIH (NETTO) DITERIMA
+                <span className="text-xs font-bold text-emerald-900 uppercase tracking-wide block">
+                  Total Bersih
                 </span>
-                <span className="text-[11px] text-emerald-700 font-semibold">Total Nilai - Total Biaya</span>
+                <span className="text-[11px] text-emerald-700">Total Nilai Kotor - Operasional</span>
               </div>
-              <span className="text-2xl sm:text-3xl font-black text-emerald-800 font-mono tabular-nums">
+              <span className="text-lg sm:text-xl font-bold text-emerald-800 font-mono tabular-nums">
                 {formatRupiah(record.bersih)}
               </span>
             </div>
 
-            {/* Pembagian Baru: Rumpon 1 Bagian & Kapal 2 Bagian */}
+            {/* 7. Bagian Rumpon dan Bagian Kapal */}
             {(() => {
               const { rumponBagian, kapalBagian } = calculateProfitDistribution(record.bersih);
               return (
-                <div className="p-4 rounded-2xl bg-amber-50/90 border-2 border-amber-400 space-y-2.5 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-amber-950 uppercase tracking-wide">
-                      ⚖️ Pembagian Hasil Bersih (Dibagi 3 Bagian)
-                    </span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
-                      Rumpon 1 : Kapal 2
-                    </span>
-                  </div>
+                <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-300 space-y-2 shadow-sm">
+                  <span className="text-xs font-bold text-amber-950 block">
+                    Pembagian Hasil Bersih (Dibagi 3 Bagian):
+                  </span>
 
-                  <p className="text-[11px] text-amber-900/90 leading-tight">
-                    Total hasil bersih <strong className="font-mono text-amber-950">{formatRupiah(record.bersih)}</strong> dibagi menjadi 3 bagian:
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    <div className="p-3 rounded-xl bg-white border border-amber-300 text-left space-y-0.5">
-                      <span className="text-[10px] font-bold text-amber-800 uppercase block tracking-wider">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="p-2.5 rounded-xl bg-white border border-amber-200 text-left">
+                      <span className="text-[10px] font-bold text-amber-800 uppercase block">
                         Rumpon (1 Bagian)
                       </span>
-                      <span className="text-lg sm:text-xl font-black text-amber-900 font-mono tabular-nums block">
+                      <span className="text-base font-bold text-amber-900 font-mono tabular-nums block">
                         {formatRupiah(rumponBagian)}
                       </span>
-                      <span className="text-[9px] text-slate-500 block">1/3 dari hasil bersih</span>
+                      <span className="text-[9px] text-slate-500 block">1/3 bagian</span>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-white border border-emerald-300 text-left space-y-0.5">
-                      <span className="text-[10px] font-bold text-emerald-800 uppercase block tracking-wider">
+                    <div className="p-2.5 rounded-xl bg-white border border-emerald-200 text-left">
+                      <span className="text-[10px] font-bold text-emerald-800 uppercase block">
                         Kapal (2 Bagian)
                       </span>
-                      <span className="text-lg sm:text-xl font-black text-emerald-900 font-mono tabular-nums block">
+                      <span className="text-base font-bold text-emerald-900 font-mono tabular-nums block">
                         {formatRupiah(kapalBagian)}
                       </span>
-                      <span className="text-[9px] text-slate-500 block">2/3 dari hasil bersih</span>
+                      <span className="text-[9px] text-slate-500 block">2/3 bagian</span>
                     </div>
                   </div>
                 </div>
               );
             })()}
 
-            {/* Keterangan */}
-            {record.keterangan && (
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-                <span className="text-[10px] font-bold text-slate-500 uppercase block mb-0.5">
-                  Keterangan:
-                </span>
-                <p className="text-slate-800">{record.keterangan}</p>
+            {/* 8. Logo WA & Catatan Sementara */}
+            <div className="pt-3 border-t border-slate-200 text-center space-y-1.5">
+              <div className="inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-slate-900 font-bold text-xs">
+                <div className="w-5 h-5 rounded-full bg-[#25D366] flex items-center justify-center text-white text-[10px] shadow-sm">
+                  WA
+                </div>
+                <span>085179709543</span>
               </div>
-            )}
-
-            {/* Social Media Links */}
-            {hasSocial && (
-              <div className="pt-2 border-t border-slate-200 text-xs text-slate-600 flex flex-wrap items-center gap-3">
-                <span className="font-bold text-slate-800">Media Sosial:</span>
-                {soc.tiktok && <span>TikTok: @{soc.tiktok}</span>}
-                {soc.instagram && <span>IG: @{soc.instagram}</span>}
-                {soc.facebook && <span className="font-bold text-sky-700">FB: {soc.facebook}</span>}
-                {soc.linkLain && <span>{soc.linkLain}</span>}
-              </div>
-            )}
-
-            {/* Mandatory Automatic Disclaimer */}
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[10px] text-slate-500 italic leading-relaxed">
-              {autoDisclaimer}
+              <p className="text-[11px] text-slate-500 italic">
+                Catatan: Ini merupakan hitungan sementara dan bukan hitungan pasti.
+              </p>
             </div>
           </div>
         </div>

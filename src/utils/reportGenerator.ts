@@ -457,23 +457,96 @@ export async function generatePdfReport(
 }
 
 /**
- * Render a complete, high-definition (HD) Slip image in LIGHT THEME and strict 9:16 portrait ratio.
- * Features:
- * - Crisp White/Light theme designed for high-contrast sharing (WhatsApp, Facebook, gallery)
- * - Extra-large, bold fonts for crystal clarity
- * - HERO HIGHLIGHT for TOTAL BERAT KESELURUHAN IKAN (Tonnage & Kg) in giant, impossible-to-miss font
- * - Large, prominent display of handwritten notebook photo
- * - Strict 9:16 portrait aspect ratio without dead blank margins
+/**
+ * Draw a clean, crisp WhatsApp vector logo with phone number on Canvas 2D
+ */
+function drawWhatsAppBadge(
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  y: number,
+  phoneText = '085179709543'
+) {
+  ctx.save();
+  const iconSize = 28;
+  ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
+  const textW = ctx.measureText(phoneText).width;
+  const gap = 10;
+  const totalW = iconSize + gap + textW;
+  const startX = centerX - totalW / 2;
+  const iconX = startX;
+  const iconY = y;
+
+  const cx = iconX + iconSize / 2;
+  const cy = iconY + iconSize / 2;
+  const r = iconSize / 2;
+
+  // Green circular badge
+  ctx.fillStyle = '#25D366';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Speech bubble pointer tail
+  ctx.beginPath();
+  ctx.moveTo(cx - r * 0.45, cy + r * 0.55);
+  ctx.lineTo(cx - r * 0.88, cy + r * 0.96);
+  ctx.lineTo(cx - r * 0.12, cy + r * 0.76);
+  ctx.closePath();
+  ctx.fill();
+
+  // White phone handset inside
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-0.18);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2.8;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.52, -Math.PI * 0.72, 0.22);
+  ctx.stroke();
+
+  // Small ear/mouth caps
+  const rInside = r * 0.52;
+  const a1 = -Math.PI * 0.72;
+  const a2 = 0.22;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(rInside * Math.cos(a1), rInside * Math.sin(a1), 2.2, 0, Math.PI * 2);
+  ctx.arc(rInside * Math.cos(a2), rInside * Math.sin(a2), 2.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Phone number text
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
+  ctx.fillText(phoneText, iconX + iconSize + gap, y + iconSize * 0.72);
+  ctx.restore();
+}
+
+/**
+ * Render an ultra-clean, minimalist, high-definition Slip image in Portrait mode.
+ * Follows the user's exact required sequence:
+ * 1. Bagian Atas: Langsung Tanggal dan Nama Rumpon (tanpa header 'Catatan by Iswandi')
+ * 2. Foto Asli / Tulisan Tangan (jika ada)
+ * 3. Total Berat Ikan: (Tulisan agak besar) & total uang ikan (tulisan kecil) di sampingnya
+ * 4. Rincian Hasil Ikan / Scan (dengan seluruh angka timbangan box transparan)
+ * 5. Operasional (rincian biaya & total)
+ * 6. Total Bersih (Tulisan standar saja, tidak terlalu besar)
+ * 7. Bagian Rumpon (1 bagian) dan Bagian Kapal (2 bagian)
+ * 8. Footer: Logo WA: 085179709543 & Catatan sementara
  */
 export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promise<string> {
   const { record, settings, photoBase64, includePhoto = true } = options;
 
-  // Base canvas layout in 1080px Full HD width
+  // Clean, Full HD 1080px base portrait canvas
   const baseWidth = 1080;
-  const padding = 42;
+  const padding = 44;
   const contentWidth = baseWidth - padding * 2;
 
-  // Pre-load handwritten notebook photo if available
+  // Pre-load original notebook photo if available
   let imgObj: HTMLImageElement | null = null;
   let imgDisplayWidth = 0;
   let imgDisplayHeight = 0;
@@ -488,8 +561,7 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
         img.src = photoBase64;
       });
       const aspect = imgObj.width / imgObj.height;
-      // Allow photo to be large and clear (up to 620px height)
-      const maxImgH = 620;
+      const maxImgH = 480;
       imgDisplayHeight = Math.min(maxImgH, contentWidth / aspect);
       imgDisplayWidth = imgDisplayHeight * aspect;
       if (imgDisplayWidth > contentWidth) {
@@ -502,56 +574,54 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
     }
   }
 
-  // Calculate content height
+  // Calculate required height dynamically for snug, clean portrait framing
   let contentRequiredHeight = padding;
-  contentRequiredHeight += 120; // Top Brand Header
-  contentRequiredHeight += 84;  // Date & Rumpon card
-  contentRequiredHeight += 20;  // Gap
-  contentRequiredHeight += 115; // HERO HIGHLIGHT: Total Berat Keseluruhan Ikan
-  contentRequiredHeight += 20;  // Gap
 
+  // 1. Header Card (Tanggal & Rumpon)
+  const headerCardH = 76;
+  contentRequiredHeight += headerCardH + 18;
+
+  // 2. Foto Asli (if present)
   if (imgObj) {
-    contentRequiredHeight += 38; // Photo section title
-    contentRequiredHeight += imgDisplayHeight + 22; // Photo + frame + spacing
+    contentRequiredHeight += 28 + imgDisplayHeight + 14 + 18;
   }
 
-  // Table
-  contentRequiredHeight += 38; // Table title
-  contentRequiredHeight += 52; // Table header
-  contentRequiredHeight += record.items.reduce((acc, it) => {
+  // 3. Total Berat Ikan (agak besar) & Total Uang Ikan (kecil)
+  const summaryCardH = 78;
+  contentRequiredHeight += summaryCardH + 20;
+
+  // 4. Rincian Hasil Ikan / Scan
+  contentRequiredHeight += 30; // Section title
+  contentRequiredHeight += 44; // Table header
+  const tableRowsH = record.items.reduce((acc, it) => {
     if (it.weights && it.weights.length > 0) {
-      const lines = wrapWeightNumbers(it.weights, 80);
-      return acc + 56 + (30 + lines.length * 22) + 12;
+      const lines = wrapWeightNumbers(it.weights, 85);
+      return acc + 50 + (26 + lines.length * 20) + 8;
     }
-    return acc + 56;
+    return acc + 50;
   }, 0);
-  contentRequiredHeight += 58; // Table total row
-  contentRequiredHeight += 22; // Gap
+  contentRequiredHeight += tableRowsH;
+  contentRequiredHeight += 46; // Table total row
+  contentRequiredHeight += 20; // Gap
 
-  // Potongan Biaya
-  contentRequiredHeight += 38; // Fee title
-  contentRequiredHeight += 205; // Fee card
-  contentRequiredHeight += 22; // Gap
+  // 5. Operasional
+  contentRequiredHeight += 30; // Section title
+  const feeBoxH = 186;
+  contentRequiredHeight += feeBoxH + 20;
 
-  // Total Bersih Netto Grand Banner
-  contentRequiredHeight += 125; // Netto banner
-  contentRequiredHeight += 22; // Gap
+  // 6. Total Bersih (Tulisan standar saja)
+  const nettoCardH = 68;
+  contentRequiredHeight += nettoCardH + 16;
 
-  // Pembagian Hasil Bersih (Dibagi 3 Bagian: Rumpon 1 & Kapal 2)
-  contentRequiredHeight += 145; // Profit split card
-  contentRequiredHeight += 22; // Gap
+  // 7. Bagian Rumpon dan Bagian Kapal
+  const splitCardH = 88;
+  contentRequiredHeight += splitCardH + 26;
 
-  // Social & Footer
-  contentRequiredHeight += 110;
-  contentRequiredHeight += padding;
+  // 8. Footer: Logo WA & Catatan Sementara
+  contentRequiredHeight += 34 + 10 + 26 + padding;
 
-  // Strict 9:16 portrait resolution
-  const targetHeight = Math.max(1920, Math.ceil(contentRequiredHeight / 16) * 16);
-  const targetWidth = Math.round(targetHeight * (9 / 16));
-
-  // Extra space distributed among gaps
-  const extraSlack = Math.max(0, targetHeight - contentRequiredHeight);
-  const gapBonus = Math.min(18, Math.floor(extraSlack / 7));
+  const targetHeight = Math.max(1350, Math.ceil(contentRequiredHeight));
+  const targetWidth = baseWidth;
 
   const canvas = document.createElement('canvas');
   canvas.width = targetWidth;
@@ -563,281 +633,228 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  const scale = targetWidth / baseWidth;
-  ctx.scale(scale, scale);
-
-  const virtualHeight = targetHeight / scale;
-
-  // 1. Clean, Bright White Canvas Background (LIGHT THEME)
+  // 1. Pristine Minimalist White Background
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, baseWidth, virtualHeight);
+  ctx.fillRect(0, 0, targetWidth, targetHeight);
 
-  // Outer Crisp Navy/Marine Border
-  ctx.strokeStyle = '#0f172a';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  if (ctx.roundRect) {
-    ctx.roundRect(14, 14, baseWidth - 28, virtualHeight - 28, 24);
-  } else {
-    ctx.rect(14, 14, baseWidth - 28, virtualHeight - 28);
-  }
-  ctx.stroke();
-
-  // Subtle inner accent border
-  ctx.strokeStyle = '#0284c7';
+  // Subtle clean outer frame
+  ctx.strokeStyle = '#e2e8f0';
   ctx.lineWidth = 2;
   ctx.beginPath();
   if (ctx.roundRect) {
-    ctx.roundRect(22, 22, baseWidth - 44, virtualHeight - 44, 18);
+    ctx.roundRect(16, 16, targetWidth - 32, targetHeight - 32, 16);
   } else {
-    ctx.rect(22, 22, baseWidth - 44, virtualHeight - 44);
+    ctx.rect(16, 16, targetWidth - 32, targetHeight - 32);
   }
   ctx.stroke();
 
-  let curY = padding + 10 + gapBonus;
+  let curY = padding;
 
-  // Top Accent Banner
-  ctx.fillStyle = '#0f172a';
-  ctx.beginPath();
-  if (ctx.roundRect) {
-    ctx.roundRect(padding, curY, contentWidth, 10, 5);
-  } else {
-    ctx.rect(padding, curY, contentWidth, 10);
-  }
-  ctx.fill();
-
-  curY += 24;
-
-  // Header Titles
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#0284c7';
-  ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
-  ctx.fillText('PEMBUKUAN HASIL TANGKAPAN IKAN HARIAN', baseWidth / 2, curY);
-
-  curY += 40;
-  ctx.fillStyle = '#0f172a';
-  ctx.font = '900 42px system-ui, -apple-system, sans-serif';
-  ctx.fillText(settings.reportTitle || 'CATATAN BY ISWANDI', baseWidth / 2, curY);
-
-  curY += 26;
-  ctx.fillStyle = '#475569';
-  ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`Pengelola: ${settings.ownerName || 'Iswandi'}`, baseWidth / 2, curY);
-
-  curY += 22;
-  ctx.strokeStyle = '#cbd5e1';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(padding, curY);
-  ctx.lineTo(baseWidth - padding, curY);
-  ctx.stroke();
-
-  curY += 18 + gapBonus;
-
-  // 2. Date & Rumpon Card (Light Theme)
-  const metaCardH = 76;
+  // =========================================================================
+  // 1. BAGIAN ATAS: LANGSUNG TANGGAL DAN NAMA RUMPON (TANPA HEADER 'CATATAN BY ISWANDI')
+  // =========================================================================
   ctx.fillStyle = '#f8fafc';
   ctx.beginPath();
   if (ctx.roundRect) {
-    ctx.roundRect(padding, curY, contentWidth, metaCardH, 14);
+    ctx.roundRect(padding, curY, contentWidth, headerCardH, 12);
   } else {
-    ctx.rect(padding, curY, contentWidth, metaCardH);
+    ctx.rect(padding, curY, contentWidth, headerCardH);
   }
   ctx.fill();
   ctx.strokeStyle = '#cbd5e1';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Tanggal
+  // Tanggal (Kiri)
   ctx.textAlign = 'left';
   ctx.fillStyle = '#64748b';
-  ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
-  ctx.fillText('TANGGAL PEMBUKUAN:', padding + 22, curY + 28);
+  ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
+  ctx.fillText('TANGGAL:', padding + 20, curY + 28);
   ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 22px monospace';
-  ctx.fillText(record.tanggal || '-', padding + 22, curY + 56);
+  ctx.font = 'bold 20px monospace';
+  ctx.fillText(record.tanggal || '-', padding + 20, curY + 54);
 
-  // Rumpon
+  // Nama Rumpon (Kanan)
   ctx.textAlign = 'right';
   ctx.fillStyle = '#64748b';
-  ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
-  ctx.fillText('LOKASI / RUMPON:', padding + contentWidth - 22, curY + 28);
+  ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
+  ctx.fillText('NAMA RUMPON:', padding + contentWidth - 20, curY + 28);
   ctx.fillStyle = '#0284c7';
-  ctx.font = '900 24px system-ui, -apple-system, sans-serif';
-  ctx.fillText((record.rumpon || '-').toUpperCase(), padding + contentWidth - 22, curY + 56);
+  ctx.font = '900 22px system-ui, -apple-system, sans-serif';
+  ctx.fillText((record.rumpon || '-').toUpperCase(), padding + contentWidth - 20, curY + 54);
 
-  curY += metaCardH + 18 + gapBonus;
+  curY += headerCardH + 18;
 
-  // 3. HERO HIGHLIGHT: JUMLAH KESELURUHAN BERAT IKAN (EXTRA BESAR & JELAS!)
-  const heroWeightH = 110;
-  ctx.fillStyle = '#f0f9ff'; // Light Cyan/Blue background
-  ctx.beginPath();
-  if (ctx.roundRect) {
-    ctx.roundRect(padding, curY, contentWidth, heroWeightH, 16);
-  } else {
-    ctx.rect(padding, curY, contentWidth, heroWeightH);
-  }
-  ctx.fill();
-  ctx.strokeStyle = '#0284c7';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  // Badge label
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#0369a1';
-  ctx.font = '900 17px system-ui, -apple-system, sans-serif';
-  ctx.fillText('⚖️ JUMLAH KESELURUHAN BERAT IKAN:', padding + 22, curY + 34);
-
-  // Giant Total Weight
-  ctx.fillStyle = '#0c4a6e';
-  ctx.font = '900 48px monospace';
-  ctx.fillText(`${formatKg(record.totalBeratKg)} (${formatTon(record.totalTonase)})`, padding + 22, curY + 88);
-
-  // Subtotal Total Harga (Kotor) on Right
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#047857';
-  ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
-  ctx.fillText('TOTAL NILAI IKAN (KOTOR):', padding + contentWidth - 22, curY + 38);
-  ctx.font = '900 28px monospace';
-  ctx.fillText(formatRupiah(record.totalHarga), padding + contentWidth - 22, curY + 84);
-
-  curY += heroWeightH + 20 + gapBonus;
-
-  // 4. Section 1: Original Photo (if available)
+  // =========================================================================
+  // 2. SETELAH ITU FOTO ASLI / TULISAN TANGAN
+  // =========================================================================
   if (imgObj) {
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#0f172a';
-    ctx.font = '900 18px system-ui, -apple-system, sans-serif';
-    ctx.fillText('1. FOTO ASLI BUKU CATATAN (TULISAN TANGAN)', padding, curY);
+    ctx.fillStyle = '#475569';
+    ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+    ctx.fillText('FOTO ASLI / TULISAN TANGAN', padding, curY + 14);
 
-    curY += 16;
+    curY += 26;
+
     const imgX = padding + (contentWidth - imgDisplayWidth) / 2;
-
-    // Background card for photo
     ctx.fillStyle = '#f8fafc';
     ctx.beginPath();
     if (ctx.roundRect) {
-      ctx.roundRect(imgX - 4, curY - 4, imgDisplayWidth + 8, imgDisplayHeight + 8, 14);
+      ctx.roundRect(imgX - 3, curY - 3, imgDisplayWidth + 6, imgDisplayHeight + 6, 12);
     } else {
-      ctx.rect(imgX - 4, curY - 4, imgDisplayWidth + 8, imgDisplayHeight + 8);
+      ctx.rect(imgX - 3, curY - 3, imgDisplayWidth + 6, imgDisplayHeight + 6);
     }
     ctx.fill();
     ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
 
     ctx.drawImage(imgObj, imgX, curY, imgDisplayWidth, imgDisplayHeight);
-
-    curY += imgDisplayHeight + 22 + gapBonus;
+    curY += imgDisplayHeight + 14 + 18;
   }
 
-  // 5. Section 2: Table of Fish
-  const fishSectionNum = imgObj ? '2' : '1';
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#0f172a';
-  ctx.font = '900 18px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`${fishSectionNum}. RINCIAN HASIL IKAN (SCAN DIGITAL AI)`, padding, curY);
+  // =========================================================================
+  // 3. DIBAWAHNYA: TOTAL BERAT IKAN (AGAK BESAR) & TOTAL UANG IKAN (TULISAN KECIL DI SAMPINGNYA)
+  // =========================================================================
+  ctx.fillStyle = '#f0f9ff';
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(padding, curY, contentWidth, summaryCardH, 12);
+  } else {
+    ctx.rect(padding, curY, contentWidth, summaryCardH);
+  }
+  ctx.fill();
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
 
-  curY += 14;
+  // Kiri: Total Berat Ikan: (Tulisan agak besar)
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#0369a1';
+  ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+  ctx.fillText('TOTAL BERAT IKAN:', padding + 20, curY + 30);
+  ctx.fillStyle = '#0c4a6e';
+  ctx.font = '900 30px monospace';
+  ctx.fillText(`${formatKg(record.totalBeratKg)} (${formatTon(record.totalTonase)})`, padding + 20, curY + 62);
+
+  // Kanan / di sampingnya: Total uang ikan (tulisan kecil)
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#64748b';
+  ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+  ctx.fillText('TOTAL NILAI IKAN (KOTOR):', padding + contentWidth - 20, curY + 30);
+  ctx.fillStyle = '#047857';
+  ctx.font = 'bold 19px monospace';
+  ctx.fillText(formatRupiah(record.totalHarga), padding + contentWidth - 20, curY + 60);
+
+  curY += summaryCardH + 20;
+
+  // =========================================================================
+  // 4. RINCIAN HASIL IKAN / SCAN
+  // =========================================================================
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#1e293b';
+  ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+  ctx.fillText('RINCIAN HASIL IKAN / SCAN', padding, curY + 14);
+
+  curY += 24;
 
   const colX = {
-    no: padding + 18,
-    nama: padding + 74,
-    berat: padding + 510,
-    harga: padding + 730,
-    subtotal: padding + contentWidth - 20,
+    no: padding + 16,
+    nama: padding + 68,
+    berat: padding + 520,
+    harga: padding + 735,
+    subtotal: padding + contentWidth - 16,
   };
 
   // Table Header
-  const thH = 50;
-  ctx.fillStyle = '#0f172a'; // Deep Navy
+  const thH = 40;
+  ctx.fillStyle = '#1e293b';
   ctx.beginPath();
   if (ctx.roundRect) {
-    ctx.roundRect(padding, curY, contentWidth, thH, [12, 12, 0, 0]);
+    ctx.roundRect(padding, curY, contentWidth, thH, [10, 10, 0, 0]);
   } else {
     ctx.rect(padding, curY, contentWidth, thH);
   }
   ctx.fill();
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+  ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('NO', colX.no, curY + 31);
-  ctx.fillText('JENIS IKAN', colX.nama, curY + 31);
+  ctx.fillText('NO', colX.no, curY + 25);
+  ctx.fillText('JENIS IKAN', colX.nama, curY + 25);
   ctx.textAlign = 'right';
-  ctx.fillText('BERAT (KG)', colX.berat, curY + 31);
-  ctx.fillText('HARGA / KG', colX.harga, curY + 31);
-  ctx.fillText('SUBTOTAL', colX.subtotal, curY + 31);
+  ctx.fillText('BERAT (KG)', colX.berat, curY + 25);
+  ctx.fillText('HARGA / KG', colX.harga, curY + 25);
+  ctx.fillText('SUBTOTAL', colX.subtotal, curY + 25);
 
   curY += thH;
 
-  // Table Rows
+  // Table Rows with complete box weight breakdown
   record.items.forEach((item, idx) => {
     const hasWeights = Boolean(item.weights && item.weights.length > 0);
-    const weightLines = hasWeights ? wrapWeightNumbers(item.weights!, 80) : [];
-    const weightBoxH = hasWeights ? 28 + weightLines.length * 22 : 0;
-    const rowH = hasWeights ? 54 + weightBoxH + 10 : 54;
+    const weightLines = hasWeights ? wrapWeightNumbers(item.weights!, 85) : [];
+    const weightBoxH = hasWeights ? 24 + weightLines.length * 20 : 0;
+    const rowH = hasWeights ? 50 + weightBoxH + 8 : 50;
 
     ctx.fillStyle = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
     ctx.fillRect(padding, curY, contentWidth, rowH);
 
-    // Bottom border
     ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(padding, curY + rowH);
     ctx.lineTo(padding + contentWidth, curY + rowH);
     ctx.stroke();
 
     ctx.fillStyle = '#64748b';
-    ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+    ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(`${idx + 1}`, colX.no, curY + 34);
+    ctx.fillText(`${idx + 1}`, colX.no, curY + 31);
 
     ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
-    ctx.fillText(item.namaIkan, colX.nama, curY + 34);
+    ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+    ctx.fillText(item.namaIkan, colX.nama, curY + 31);
 
     ctx.textAlign = 'right';
     ctx.fillStyle = '#0284c7';
-    ctx.font = 'bold 22px monospace';
-    ctx.fillText(formatKg(item.beratKg), colX.berat, curY + 34);
+    ctx.font = 'bold 17px monospace';
+    ctx.fillText(formatKg(item.beratKg), colX.berat, curY + 31);
 
-    ctx.fillStyle = '#334155';
-    ctx.font = 'bold 18px monospace';
-    ctx.fillText(item.hargaPerKg ? formatRupiah(item.hargaPerKg) : '-', colX.harga, curY + 34);
+    ctx.fillStyle = '#475569';
+    ctx.font = '15px monospace';
+    ctx.fillText(item.hargaPerKg ? formatRupiah(item.hargaPerKg) : '-', colX.harga, curY + 31);
 
     ctx.fillStyle = item.subtotal ? '#047857' : '#64748b';
-    ctx.font = 'bold 22px monospace';
-    ctx.fillText(item.subtotal ? formatRupiah(item.subtotal) : '-', colX.subtotal, curY + 34);
+    ctx.font = 'bold 17px monospace';
+    ctx.fillText(item.subtotal ? formatRupiah(item.subtotal) : '-', colX.subtotal, curY + 31);
 
-    // Render Full List of Individual Weight Numbers (Scanned & Manual)
+    // Render transparent list of every weight number
     if (hasWeights) {
       const boxX = colX.nama;
       const boxW = contentWidth - (colX.nama - padding) - 16;
-      const boxY = curY + 48;
+      const boxY = curY + 44;
 
       ctx.fillStyle = '#fffbeb';
       ctx.beginPath();
       if (ctx.roundRect) {
-        ctx.roundRect(boxX, boxY, boxW, weightBoxH, 10);
+        ctx.roundRect(boxX, boxY, boxW, weightBoxH, 8);
       } else {
         ctx.rect(boxX, boxY, boxW, weightBoxH);
       }
       ctx.fill();
       ctx.strokeStyle = '#fef08a';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1;
       ctx.stroke();
 
       ctx.textAlign = 'left';
       ctx.fillStyle = '#b45309';
-      ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
-      ctx.fillText(`📦 Angka Timbangan (${item.weights!.length} Box / Keranjang):`, boxX + 12, boxY + 19);
+      ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+      ctx.fillText(`Angka Timbangan (${item.weights!.length} Box / Keranjang):`, boxX + 10, boxY + 16);
 
       ctx.fillStyle = '#92400e';
-      ctx.font = 'bold 14px monospace';
+      ctx.font = 'bold 12.5px monospace';
       weightLines.forEach((wLine, lIdx) => {
-        ctx.fillText(wLine, boxX + 12, boxY + 39 + lIdx * 22);
+        ctx.fillText(wLine, boxX + 10, boxY + 34 + lIdx * 20);
       });
     }
 
@@ -845,56 +862,44 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
   });
 
   // Table Total Row
-  const totalRowH = 56;
-  ctx.fillStyle = '#e0f2fe';
+  const totalRowH = 46;
+  ctx.fillStyle = '#f1f5f9';
   ctx.beginPath();
   if (ctx.roundRect) {
-    ctx.roundRect(padding, curY, contentWidth, totalRowH, [0, 0, 12, 12]);
+    ctx.roundRect(padding, curY, contentWidth, totalRowH, [0, 0, 10, 10]);
   } else {
     ctx.rect(padding, curY, contentWidth, totalRowH);
   }
   ctx.fill();
-  ctx.strokeStyle = '#0284c7';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#0c4a6e';
-  ctx.font = '900 18px system-ui, -apple-system, sans-serif';
-  ctx.fillText('TOTAL IKAN', colX.no, curY + 36);
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+  ctx.fillText('TOTAL IKAN', colX.no, curY + 29);
 
   ctx.textAlign = 'right';
   ctx.fillStyle = '#0284c7';
-  ctx.font = '900 22px monospace';
-  ctx.fillText(`${formatTon(record.totalTonase)} (${formatKg(record.totalBeratKg)})`, colX.berat, curY + 36);
+  ctx.font = 'bold 17px monospace';
+  ctx.fillText(`${formatTon(record.totalTonase)} (${formatKg(record.totalBeratKg)})`, colX.berat, curY + 29);
 
   ctx.fillStyle = '#047857';
-  ctx.font = '900 24px monospace';
-  ctx.fillText(formatRupiah(record.totalHarga), colX.subtotal, curY + 36);
+  ctx.font = 'bold 18px monospace';
+  ctx.fillText(formatRupiah(record.totalHarga), colX.subtotal, curY + 29);
 
-  curY += totalRowH + 20 + gapBonus;
+  curY += totalRowH + 20;
 
-  // 6. Section 3: Potongan Biaya (Light Theme)
-  const feeSectionNum = imgObj ? '3' : '2';
+  // =========================================================================
+  // 5. OPERASIONAL
+  // =========================================================================
   ctx.textAlign = 'left';
   ctx.fillStyle = '#991b1b';
-  ctx.font = '900 18px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`${feeSectionNum}. POTONGAN BIAYA OPERASIONAL (ESTIMASI)`, padding, curY);
+  ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+  ctx.fillText('OPERASIONAL', padding, curY + 14);
 
-  curY += 14;
-
-  const feeBoxH = 205;
-  ctx.fillStyle = '#fff1f2';
-  ctx.beginPath();
-  if (ctx.roundRect) {
-    ctx.roundRect(padding, curY, contentWidth, feeBoxH, 16);
-  } else {
-    ctx.rect(padding, curY, contentWidth, feeBoxH);
-  }
-  ctx.fill();
-  ctx.strokeStyle = '#fecdd3';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  curY += 24;
 
   const feeRows = [
     { name: 'Pemikul', sub: '(Rp300rb / 1.000 kg)', val: record.biayaPemikul },
@@ -915,186 +920,172 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
     },
   ];
 
-  let feeRowY = curY + 32;
+  ctx.fillStyle = '#fff1f2';
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(padding, curY, contentWidth, feeBoxH, 12);
+  } else {
+    ctx.rect(padding, curY, contentWidth, feeBoxH);
+  }
+  ctx.fill();
+  ctx.strokeStyle = '#fecdd3';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  let feeRowY = curY + 28;
   feeRows.forEach((fr) => {
     ctx.textAlign = 'left';
     ctx.fillStyle = '#1e293b';
-    ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
-    ctx.fillText(fr.name, padding + 22, feeRowY);
+    ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+    ctx.fillText(fr.name, padding + 20, feeRowY);
 
     ctx.fillStyle = '#64748b';
-    ctx.font = '15px system-ui, -apple-system, sans-serif';
-    ctx.fillText(fr.sub, padding + 180, feeRowY);
+    ctx.font = '12px system-ui, -apple-system, sans-serif';
+    ctx.fillText(fr.sub, padding + 160, feeRowY);
 
     ctx.textAlign = 'right';
     ctx.fillStyle = '#b91c1c';
-    ctx.font = 'bold 20px monospace';
-    ctx.fillText(formatRupiah(fr.val), padding + contentWidth - 22, feeRowY);
+    ctx.font = 'bold 16px monospace';
+    ctx.fillText(formatRupiah(fr.val), padding + contentWidth - 20, feeRowY);
 
-    feeRowY += 34;
+    feeRowY += 29;
   });
 
   // Divider inside fee box
   ctx.strokeStyle = '#fca5a5';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(padding + 22, feeRowY - 6);
-  ctx.lineTo(padding + contentWidth - 22, feeRowY - 6);
+  ctx.moveTo(padding + 20, feeRowY - 6);
+  ctx.lineTo(padding + contentWidth - 20, feeRowY - 6);
   ctx.stroke();
 
-  feeRowY += 22;
+  feeRowY += 18;
   ctx.textAlign = 'left';
   ctx.fillStyle = '#991b1b';
-  ctx.font = '900 18px system-ui, -apple-system, sans-serif';
-  ctx.fillText('TOTAL BIAYA POTONGAN', padding + 22, feeRowY);
+  ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+  ctx.fillText('TOTAL OPERASIONAL', padding + 20, feeRowY);
 
   ctx.textAlign = 'right';
-  ctx.font = '900 24px monospace';
-  ctx.fillText(formatRupiah(record.totalBiaya), padding + contentWidth - 22, feeRowY);
+  ctx.font = 'bold 18px monospace';
+  ctx.fillText(formatRupiah(record.totalBiaya), padding + contentWidth - 20, feeRowY);
 
-  curY += feeBoxH + 20 + gapBonus;
+  curY += feeBoxH + 20;
 
-  // 7. Section 4: HASIL BERSIH (NETTO) GRAND TOTAL HERO BANNER
-  const nettoH = 118;
-  ctx.fillStyle = '#ecfdf5'; // Rich Light Emerald
+  // =========================================================================
+  // 6. TOTAL BERSIH (TULISAN STANDAR SAJA, TIDAK USAH TERLALU BESAR)
+  // =========================================================================
+  ctx.fillStyle = '#ecfdf5';
   ctx.beginPath();
   if (ctx.roundRect) {
-    ctx.roundRect(padding, curY, contentWidth, nettoH, 18);
+    ctx.roundRect(padding, curY, contentWidth, nettoCardH, 12);
   } else {
-    ctx.rect(padding, curY, contentWidth, nettoH);
+    ctx.rect(padding, curY, contentWidth, nettoCardH);
   }
   ctx.fill();
-  ctx.strokeStyle = '#059669';
-  ctx.lineWidth = 3.5;
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
+  // Left: Label Total Bersih
   ctx.textAlign = 'left';
   ctx.fillStyle = '#065f46';
-  ctx.font = '900 18px system-ui, -apple-system, sans-serif';
-  ctx.fillText('TOTAL HASIL BERSIH (NETTO) DITERIMA', padding + 24, curY + 40);
-
+  ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+  ctx.fillText('TOTAL HASIL BERSIH (NETTO)', padding + 20, curY + 28);
   ctx.fillStyle = '#047857';
-  ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
-  ctx.fillText(
-    `Total Harga (${formatRupiah(record.totalHarga)}) - Potongan (${formatRupiah(record.totalBiaya)})`,
-    padding + 24,
-    curY + 76
-  );
+  ctx.font = '12px system-ui, -apple-system, sans-serif';
+  ctx.fillText('Total Nilai Kotor - Total Operasional', padding + 20, curY + 48);
 
+  // Right: Value (standar saja, tidak terlalu besar)
   ctx.textAlign = 'right';
   ctx.fillStyle = '#064e3b';
-  ctx.font = '900 50px monospace';
-  ctx.fillText(formatRupiah(record.bersih), padding + contentWidth - 24, curY + 74);
+  ctx.font = 'bold 24px monospace';
+  ctx.fillText(formatRupiah(record.bersih), padding + contentWidth - 20, curY + 42);
 
-  curY += nettoH + 20 + gapBonus;
+  curY += nettoCardH + 16;
 
-  // 7.5 Section: PEMBAGIAN HASIL BERSIH (DIBAGI 3 BAGIAN: RUMPON 1 & KAPAL 2)
+  // =========================================================================
+  // 7. BAGIAN RUMPON DAN BAGIAN KAPAL
+  // =========================================================================
   const { rumponBagian, kapalBagian } = calculateProfitDistribution(record.bersih);
-  const splitH = 142;
-  ctx.fillStyle = '#fefce8'; // Warm Amber/Yellow
+
+  ctx.fillStyle = '#fefce8';
   ctx.beginPath();
   if (ctx.roundRect) {
-    ctx.roundRect(padding, curY, contentWidth, splitH, 18);
+    ctx.roundRect(padding, curY, contentWidth, splitCardH, 12);
   } else {
-    ctx.rect(padding, curY, contentWidth, splitH);
-  }
-  ctx.fill();
-  ctx.strokeStyle = '#ca8a04';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  // Header Title
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#854d0e';
-  ctx.font = '900 18px system-ui, -apple-system, sans-serif';
-  ctx.fillText('⚖️ PEMBAGIAN HASIL BERSIH (DIBAGI 3 BAGIAN)', padding + 24, curY + 34);
-
-  // Subtitle formula
-  ctx.fillStyle = '#713f12';
-  ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
-  ctx.fillText('Rumus: Uang bersih dibagi 3 ➔ Rumpon: 1 Bagian (1/3) & Kapal: 2 Bagian (2/3)', padding + 24, curY + 58);
-
-  // Sub-cards: Rumpon & Kapal
-  const splitCardW = (contentWidth - 48 - 18) / 2;
-  const splitCardY = curY + 70;
-  const splitCardH = 58;
-
-  // Box Rumpon (1 Bagian)
-  const rumponBoxX = padding + 24;
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  if (ctx.roundRect) {
-    ctx.roundRect(rumponBoxX, splitCardY, splitCardW, splitCardH, 12);
-  } else {
-    ctx.rect(rumponBoxX, splitCardY, splitCardW, splitCardH);
+    ctx.rect(padding, curY, contentWidth, splitCardH);
   }
   ctx.fill();
   ctx.strokeStyle = '#fde047';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Title
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#854d0e';
+  ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+  ctx.fillText('PEMBAGIAN HASIL BERSIH (DIBAGI 3 BAGIAN):', padding + 20, curY + 22);
+
+  const subBoxW = (contentWidth - 40 - 14) / 2;
+  const subBoxY = curY + 32;
+  const subBoxH = 44;
+
+  // Bagian Rumpon (1 Bagian)
+  const rumponBoxX = padding + 20;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(rumponBoxX, subBoxY, subBoxW, subBoxH, 8);
+  } else {
+    ctx.rect(rumponBoxX, subBoxY, subBoxW, subBoxH);
+  }
+  ctx.fill();
+  ctx.strokeStyle = '#fef08a';
+  ctx.lineWidth = 1;
   ctx.stroke();
 
   ctx.textAlign = 'left';
   ctx.fillStyle = '#a16207';
-  ctx.font = '900 13px system-ui, -apple-system, sans-serif';
-  ctx.fillText('RUMPON (1 BAGIAN):', rumponBoxX + 16, splitCardY + 22);
-
+  ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+  ctx.fillText('RUMPON (1 BAGIAN):', rumponBoxX + 12, subBoxY + 18);
   ctx.fillStyle = '#854d0e';
-  ctx.font = '900 26px monospace';
-  ctx.fillText(formatRupiah(rumponBagian), rumponBoxX + 16, splitCardY + 48);
+  ctx.font = 'bold 18px monospace';
+  ctx.fillText(formatRupiah(rumponBagian), rumponBoxX + 12, subBoxY + 36);
 
-  // Box Kapal (2 Bagian)
-  const kapalBoxX = rumponBoxX + splitCardW + 18;
+  // Bagian Kapal (2 Bagian)
+  const kapalBoxX = rumponBoxX + subBoxW + 14;
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
   if (ctx.roundRect) {
-    ctx.roundRect(kapalBoxX, splitCardY, splitCardW, splitCardH, 12);
+    ctx.roundRect(kapalBoxX, subBoxY, subBoxW, subBoxH, 8);
   } else {
-    ctx.rect(kapalBoxX, splitCardY, splitCardW, splitCardH);
+    ctx.rect(kapalBoxX, subBoxY, subBoxW, subBoxH);
   }
   ctx.fill();
-  ctx.strokeStyle = '#86efac';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#bbf7d0';
+  ctx.lineWidth = 1;
   ctx.stroke();
 
   ctx.textAlign = 'left';
   ctx.fillStyle = '#15803d';
-  ctx.font = '900 13px system-ui, -apple-system, sans-serif';
-  ctx.fillText('KAPAL (2 BAGIAN):', kapalBoxX + 16, splitCardY + 22);
-
+  ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+  ctx.fillText('KAPAL (2 BAGIAN):', kapalBoxX + 12, subBoxY + 18);
   ctx.fillStyle = '#14532d';
-  ctx.font = '900 26px monospace';
-  ctx.fillText(formatRupiah(kapalBagian), kapalBoxX + 16, splitCardY + 48);
+  ctx.font = 'bold 18px monospace';
+  ctx.fillText(formatRupiah(kapalBagian), kapalBoxX + 12, subBoxY + 36);
 
-  curY += splitH + 20 + gapBonus;
+  curY += splitCardH + 26;
 
-  // 8. Social Media Info
-  const fbLink = settings.mediaSosial?.facebook || 'https://www.facebook.com/1swandi';
-  if (fbLink) {
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#0284c7';
-    ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
-    ctx.fillText('Facebook: 1swandi · https://www.facebook.com/1swandi', baseWidth / 2, curY);
-    curY += 24;
-  }
+  // =========================================================================
+  // 8. LOGO WA: 085179709543 & CATATAN SEMENTARA
+  // =========================================================================
+  drawWhatsAppBadge(ctx, targetWidth / 2, curY, '085179709543');
+  curY += 36;
 
-  // 9. Disclaimer & Footer
   ctx.textAlign = 'center';
   ctx.fillStyle = '#64748b';
-  ctx.font = 'italic 13.5px system-ui, -apple-system, sans-serif';
-
-  const downloadLink = settings.linkDownloadAplikasi || '[LINK DOWNLOAD APLIKASI]';
-  const autoNote = settings.teksCatatanOtomatis.replace('[LINK DOWNLOAD APLIKASI]', downloadLink);
-  ctx.fillText(autoNote, baseWidth / 2, curY, contentWidth);
-
-  curY += 26;
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
-  const timestampStr = new Date().toLocaleDateString('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-  ctx.fillText(`Dicetak otomatis oleh Aplikasi Catatan by Iswandi (Format Potret 9:16 HD) · ${timestampStr}`, baseWidth / 2, curY);
+  ctx.font = 'italic 13px system-ui, -apple-system, sans-serif';
+  ctx.fillText('Catatan: Ini merupakan hitungan sementara dan bukan hitungan pasti.', targetWidth / 2, curY);
 
   return canvas.toDataURL('image/png');
 }
