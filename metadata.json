@@ -1,0 +1,6 @@
+{
+  "name": "Catatan by Iswandi - Pembukuan Hasil Ikan",
+  "description": "Aplikasi pembukuan hasil tangkapan ikan harian dengan scan AI catatan tulisan tangan, kalkulasi otomatis biaya pemikul, ABK, bongkar, nyelam, dan bersih, serta ekspor PDF & gambar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

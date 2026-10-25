@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Catatan by Iswandi",
+  "short_name": "Catatan Iswandi",
+  "description": "Aplikasi pembukuan hasil ikan harian lokal dan scan catatan tulisan tangan AI.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0e17",
+  "theme_color": "#0a0e17",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
