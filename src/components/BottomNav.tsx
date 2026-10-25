@@ -18,7 +18,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#0a0e17]/95 backdrop-blur-lg border-t border-slate-800/90 pb-safe">
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-40 bg-[#0a0e17]/95 backdrop-blur-lg border-t border-slate-800/90"
+      style={{
+        paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
+      }}
+    >
       <div className="max-w-md mx-auto grid grid-cols-5 h-16">
         {tabs.map((tab) => {
           const Icon = tab.icon;

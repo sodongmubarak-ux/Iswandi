@@ -14,7 +14,12 @@ export const TopBar: React.FC<TopBarProps> = ({ appName = 'CATATAN BY ISWANDI', 
   const { isInstallable, install } = usePWAInstall();
 
   return (
-    <header className="sticky top-0 z-40 bg-[#0a0e17]/95 backdrop-blur-md border-b border-slate-800/80 px-4 py-3">
+    <header
+      className="sticky top-0 z-40 bg-[#0a0e17]/95 backdrop-blur-md border-b border-slate-800/80 px-4 pb-3"
+      style={{
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+      }}
+    >
       <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
         {/* Brand Zone */}
         <div className="flex items-center gap-2.5">

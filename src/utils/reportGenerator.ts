@@ -397,17 +397,23 @@ export async function generatePdfReport(
 }
 
 /**
- * Render a complete, beautiful high-resolution Slip image in portrait 9:16 ratio
- * Eliminates empty space, displays handwritten notes photo large and clear, and uses crisp, bold typography.
+ * Render a complete, high-definition (HD) Slip image in LIGHT THEME and strict 9:16 portrait ratio.
+ * Features:
+ * - Crisp White/Light theme designed for high-contrast sharing (WhatsApp, Facebook, gallery)
+ * - Extra-large, bold fonts for crystal clarity
+ * - HERO HIGHLIGHT for TOTAL BERAT KESELURUHAN IKAN (Tonnage & Kg) in giant, impossible-to-miss font
+ * - Large, prominent display of handwritten notebook photo
+ * - Strict 9:16 portrait aspect ratio without dead blank margins
  */
 export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promise<string> {
   const { record, settings, photoBase64, includePhoto = true } = options;
 
+  // Base canvas layout in 1080px Full HD width
   const baseWidth = 1080;
-  const padding = 44;
+  const padding = 42;
   const contentWidth = baseWidth - padding * 2;
 
-  // Pre-load original photo if included
+  // Pre-load handwritten notebook photo if available
   let imgObj: HTMLImageElement | null = null;
   let imgDisplayWidth = 0;
   let imgDisplayHeight = 0;
@@ -422,8 +428,8 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
         img.src = photoBase64;
       });
       const aspect = imgObj.width / imgObj.height;
-      // Allow the handwritten notebook photo to be large and prominent (up to 640px height)
-      const maxImgH = 640;
+      // Allow photo to be large and clear (up to 620px height)
+      const maxImgH = 620;
       imgDisplayHeight = Math.min(maxImgH, contentWidth / aspect);
       imgDisplayWidth = imgDisplayHeight * aspect;
       if (imgDisplayWidth > contentWidth) {
@@ -436,46 +442,46 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
     }
   }
 
-  // Pre-calculate content height
+  // Calculate content height
   let contentRequiredHeight = padding;
-  contentRequiredHeight += 125; // Header brand block
-  contentRequiredHeight += 72;  // Date & Rumpon card
+  contentRequiredHeight += 120; // Top Brand Header
+  contentRequiredHeight += 84;  // Date & Rumpon card
+  contentRequiredHeight += 20;  // Gap
+  contentRequiredHeight += 115; // HERO HIGHLIGHT: Total Berat Keseluruhan Ikan
   contentRequiredHeight += 20;  // Gap
 
   if (imgObj) {
-    contentRequiredHeight += 36; // Section 1 title
-    contentRequiredHeight += imgDisplayHeight + 20; // Photo + spacing
+    contentRequiredHeight += 38; // Photo section title
+    contentRequiredHeight += imgDisplayHeight + 22; // Photo + frame + spacing
   }
 
   // Table
-  contentRequiredHeight += 36; // Table title
-  contentRequiredHeight += 46; // Table header
-  contentRequiredHeight += record.items.reduce((acc, it) => acc + (it.weights && it.weights.length > 0 ? 64 : 48), 0);
-  contentRequiredHeight += 50; // Table total row
+  contentRequiredHeight += 38; // Table title
+  contentRequiredHeight += 52; // Table header
+  contentRequiredHeight += record.items.reduce((acc, it) => acc + (it.weights && it.weights.length > 0 ? 76 : 56), 0);
+  contentRequiredHeight += 58; // Table total row
   contentRequiredHeight += 22; // Gap
 
   // Potongan Biaya
-  contentRequiredHeight += 36; // Fee title
-  contentRequiredHeight += 185; // Fee card
+  contentRequiredHeight += 38; // Fee title
+  contentRequiredHeight += 205; // Fee card
   contentRequiredHeight += 22; // Gap
 
-  // Total Bersih Netto
-  contentRequiredHeight += 108; // Netto banner
+  // Total Bersih Netto Grand Banner
+  contentRequiredHeight += 125; // Netto banner
   contentRequiredHeight += 22; // Gap
 
   // Social & Footer
-  contentRequiredHeight += 100;
+  contentRequiredHeight += 110;
   contentRequiredHeight += padding;
 
-  // Calculate canvas dimensions keeping strict 9:16 aspect ratio:
-  // Height = Width * (16 / 9)
-  // If content requires more or less, adjust dimensions so the content fills the 9:16 frame with zero dead space!
-  let targetHeight = Math.max(1600, Math.ceil(contentRequiredHeight / 16) * 16);
-  let targetWidth = Math.round(targetHeight * (9 / 16));
+  // Strict 9:16 portrait resolution
+  const targetHeight = Math.max(1920, Math.ceil(contentRequiredHeight / 16) * 16);
+  const targetWidth = Math.round(targetHeight * (9 / 16));
 
-  // Distribute any extra slack space evenly among section gaps
+  // Extra space distributed among gaps
   const extraSlack = Math.max(0, targetHeight - contentRequiredHeight);
-  const gapBonus = Math.min(18, Math.floor(extraSlack / 6));
+  const gapBonus = Math.min(18, Math.floor(extraSlack / 7));
 
   const canvas = document.createElement('canvas');
   canvas.width = targetWidth;
@@ -484,58 +490,72 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D context unavailable');
 
-  // Scale context if targetWidth is different from baseWidth
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
   const scale = targetWidth / baseWidth;
   ctx.scale(scale, scale);
 
   const virtualHeight = targetHeight / scale;
 
-  // Rich luxury dark slate background
-  ctx.fillStyle = '#0a0e17';
+  // 1. Clean, Bright White Canvas Background (LIGHT THEME)
+  ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, baseWidth, virtualHeight);
 
-  // Outer Gold Decorative Border
-  ctx.strokeStyle = '#f59e0b';
-  ctx.lineWidth = 3.5;
+  // Outer Crisp Navy/Marine Border
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 4;
   ctx.beginPath();
   if (ctx.roundRect) {
-    ctx.roundRect(16, 16, baseWidth - 32, virtualHeight - 32, 28);
+    ctx.roundRect(14, 14, baseWidth - 28, virtualHeight - 28, 24);
   } else {
-    ctx.rect(16, 16, baseWidth - 32, virtualHeight - 32);
+    ctx.rect(14, 14, baseWidth - 28, virtualHeight - 28);
   }
   ctx.stroke();
 
-  // Inner subtle accent frame
-  ctx.strokeStyle = '#1e293b';
-  ctx.lineWidth = 1.5;
+  // Subtle inner accent border
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 2;
   ctx.beginPath();
   if (ctx.roundRect) {
-    ctx.roundRect(24, 24, baseWidth - 48, virtualHeight - 48, 22);
+    ctx.roundRect(22, 22, baseWidth - 44, virtualHeight - 44, 18);
   } else {
-    ctx.rect(24, 24, baseWidth - 48, virtualHeight - 48);
+    ctx.rect(22, 22, baseWidth - 44, virtualHeight - 44);
   }
   ctx.stroke();
 
-  let curY = padding + 12 + gapBonus;
+  let curY = padding + 10 + gapBonus;
 
-  // 1. Header Brand
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#f59e0b';
-  ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
-  ctx.fillText('PEMBUKUAN HASIL TANGKAPAN IKAN HARIAN', baseWidth / 2, curY);
-
-  curY += 34;
-  ctx.fillStyle = '#fef08a';
-  ctx.font = 'bold 34px system-ui, -apple-system, sans-serif';
-  ctx.fillText(settings.reportTitle || 'CATATAN BY ISWANDI', baseWidth / 2, curY);
+  // Top Accent Banner
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(padding, curY, contentWidth, 10, 5);
+  } else {
+    ctx.rect(padding, curY, contentWidth, 10);
+  }
+  ctx.fill();
 
   curY += 24;
-  ctx.fillStyle = '#cbd5e1';
-  ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`Pengelola: ${settings.ownerName || 'Iswandi'}`, baseWidth / 2, curY);
+
+  // Header Titles
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#0284c7';
+  ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+  ctx.fillText('PEMBUKUAN HASIL TANGKAPAN IKAN HARIAN', baseWidth / 2, curY);
+
+  curY += 40;
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '900 42px system-ui, -apple-system, sans-serif';
+  ctx.fillText(settings.reportTitle || 'CATATAN BY ISWANDI', baseWidth / 2, curY);
 
   curY += 26;
-  ctx.strokeStyle = '#334155';
+  ctx.fillStyle = '#475569';
+  ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
+  ctx.fillText(`Pengelola: ${settings.ownerName || 'Iswandi'}`, baseWidth / 2, curY);
+
+  curY += 22;
+  ctx.strokeStyle = '#cbd5e1';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(padding, curY);
@@ -544,51 +564,87 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
 
   curY += 18 + gapBonus;
 
-  // 2. Date & Rumpon Card
-  const cardW = contentWidth;
-  const cardH = 68;
-  ctx.fillStyle = '#111827';
+  // 2. Date & Rumpon Card (Light Theme)
+  const metaCardH = 76;
+  ctx.fillStyle = '#f8fafc';
   ctx.beginPath();
   if (ctx.roundRect) {
-    ctx.roundRect(padding, curY, cardW, cardH, 16);
+    ctx.roundRect(padding, curY, contentWidth, metaCardH, 14);
   } else {
-    ctx.rect(padding, curY, cardW, cardH);
+    ctx.rect(padding, curY, contentWidth, metaCardH);
   }
   ctx.fill();
-  ctx.strokeStyle = '#334155';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 2;
   ctx.stroke();
 
+  // Tanggal
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
-  ctx.fillText('TANGGAL CATATAN:', padding + 22, curY + 27);
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 18px monospace';
-  ctx.fillText(record.tanggal || '-', padding + 22, curY + 51);
+  ctx.fillStyle = '#64748b';
+  ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+  ctx.fillText('TANGGAL PEMBUKUAN:', padding + 22, curY + 28);
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 22px monospace';
+  ctx.fillText(record.tanggal || '-', padding + 22, curY + 56);
 
+  // Rumpon
   ctx.textAlign = 'right';
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
-  ctx.fillText('RUMPON / LOKASI:', padding + cardW - 22, curY + 27);
-  ctx.fillStyle = '#f59e0b';
-  ctx.font = 'bold 19px system-ui, -apple-system, sans-serif';
-  ctx.fillText((record.rumpon || '-').toUpperCase(), padding + cardW - 22, curY + 51);
+  ctx.fillStyle = '#64748b';
+  ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+  ctx.fillText('LOKASI / RUMPON:', padding + contentWidth - 22, curY + 28);
+  ctx.fillStyle = '#0284c7';
+  ctx.font = '900 24px system-ui, -apple-system, sans-serif';
+  ctx.fillText((record.rumpon || '-').toUpperCase(), padding + contentWidth - 22, curY + 56);
 
-  curY += cardH + 22 + gapBonus;
+  curY += metaCardH + 18 + gapBonus;
 
-  // 3. Section 1: Original Photo (if available) - Made Prominent and Large!
+  // 3. HERO HIGHLIGHT: JUMLAH KESELURUHAN BERAT IKAN (EXTRA BESAR & JELAS!)
+  const heroWeightH = 110;
+  ctx.fillStyle = '#f0f9ff'; // Light Cyan/Blue background
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(padding, curY, contentWidth, heroWeightH, 16);
+  } else {
+    ctx.rect(padding, curY, contentWidth, heroWeightH);
+  }
+  ctx.fill();
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Badge label
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#0369a1';
+  ctx.font = '900 17px system-ui, -apple-system, sans-serif';
+  ctx.fillText('⚖️ JUMLAH KESELURUHAN BERAT IKAN:', padding + 22, curY + 34);
+
+  // Giant Total Weight
+  ctx.fillStyle = '#0c4a6e';
+  ctx.font = '900 48px monospace';
+  ctx.fillText(`${formatKg(record.totalBeratKg)} (${formatTon(record.totalTonase)})`, padding + 22, curY + 88);
+
+  // Subtotal Total Harga (Kotor) on Right
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#047857';
+  ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
+  ctx.fillText('TOTAL NILAI IKAN (KOTOR):', padding + contentWidth - 22, curY + 38);
+  ctx.font = '900 28px monospace';
+  ctx.fillText(formatRupiah(record.totalHarga), padding + contentWidth - 22, curY + 84);
+
+  curY += heroWeightH + 20 + gapBonus;
+
+  // 4. Section 1: Original Photo (if available)
   if (imgObj) {
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#fbbf24';
-    ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '900 18px system-ui, -apple-system, sans-serif';
     ctx.fillText('1. FOTO ASLI BUKU CATATAN (TULISAN TANGAN)', padding, curY);
 
-    curY += 14;
+    curY += 16;
     const imgX = padding + (contentWidth - imgDisplayWidth) / 2;
 
     // Background card for photo
-    ctx.fillStyle = '#050811';
+    ctx.fillStyle = '#f8fafc';
     ctx.beginPath();
     if (ctx.roundRect) {
       ctx.roundRect(imgX - 4, curY - 4, imgDisplayWidth + 8, imgDisplayHeight + 8, 14);
@@ -596,8 +652,8 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
       ctx.rect(imgX - 4, curY - 4, imgDisplayWidth + 8, imgDisplayHeight + 8);
     }
     ctx.fill();
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 2;
     ctx.stroke();
 
     ctx.drawImage(imgObj, imgX, curY, imgDisplayWidth, imgDisplayHeight);
@@ -605,26 +661,26 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
     curY += imgDisplayHeight + 22 + gapBonus;
   }
 
-  // 4. Section 2: Table of Fish
+  // 5. Section 2: Table of Fish
+  const fishSectionNum = imgObj ? '2' : '1';
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#38bdf8';
-  const tableSectionNum = imgObj ? '2' : '1';
-  ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`${tableSectionNum}. RINCIAN HASIL IKAN (SCAN DIGITAL AI)`, padding, curY);
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '900 18px system-ui, -apple-system, sans-serif';
+  ctx.fillText(`${fishSectionNum}. RINCIAN HASIL IKAN (SCAN DIGITAL AI)`, padding, curY);
 
   curY += 14;
 
   const colX = {
     no: padding + 18,
-    nama: padding + 72,
-    berat: padding + 490,
-    harga: padding + 710,
+    nama: padding + 74,
+    berat: padding + 510,
+    harga: padding + 730,
     subtotal: padding + contentWidth - 20,
   };
 
-  // Table Header Background
-  const thH = 46;
-  ctx.fillStyle = '#1e293b';
+  // Table Header
+  const thH = 50;
+  ctx.fillStyle = '#0f172a'; // Deep Navy
   ctx.beginPath();
   if (ctx.roundRect) {
     ctx.roundRect(padding, curY, contentWidth, thH, [12, 12, 0, 0]);
@@ -633,62 +689,70 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
   }
   ctx.fill();
 
-  ctx.fillStyle = '#fde047';
-  ctx.font = 'bold 14.5px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('NO', colX.no, curY + 28);
-  ctx.fillText('JENIS IKAN', colX.nama, curY + 28);
+  ctx.fillText('NO', colX.no, curY + 31);
+  ctx.fillText('JENIS IKAN', colX.nama, curY + 31);
   ctx.textAlign = 'right';
-  ctx.fillText('BERAT (KG)', colX.berat, curY + 28);
-  ctx.fillText('HARGA / KG', colX.harga, curY + 28);
-  ctx.fillText('SUBTOTAL', colX.subtotal, curY + 28);
+  ctx.fillText('BERAT (KG)', colX.berat, curY + 31);
+  ctx.fillText('HARGA / KG', colX.harga, curY + 31);
+  ctx.fillText('SUBTOTAL', colX.subtotal, curY + 31);
 
   curY += thH;
 
   // Table Rows
   record.items.forEach((item, idx) => {
     const hasWeights = Boolean(item.weights && item.weights.length > 0);
-    const rowH = hasWeights ? 64 : 48;
+    const rowH = hasWeights ? 74 : 54;
 
-    ctx.fillStyle = idx % 2 === 0 ? '#0f172a' : '#141e33';
+    ctx.fillStyle = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
     ctx.fillRect(padding, curY, contentWidth, rowH);
 
-    ctx.fillStyle = '#e2e8f0';
-    ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(`${idx + 1}`, colX.no, curY + (hasWeights ? 26 : 29));
+    // Bottom border
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(padding, curY + rowH);
+    ctx.lineTo(padding + contentWidth, curY + rowH);
+    ctx.stroke();
 
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#64748b';
     ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
-    ctx.fillText(item.namaIkan, colX.nama, curY + (hasWeights ? 22 : 29));
+    ctx.textAlign = 'left';
+    ctx.fillText(`${idx + 1}`, colX.no, curY + (hasWeights ? 30 : 34));
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
+    ctx.fillText(item.namaIkan, colX.nama, curY + (hasWeights ? 27 : 34));
 
     if (hasWeights) {
-      ctx.fillStyle = '#fbbf24';
-      ctx.font = 'bold 12.5px monospace';
+      ctx.fillStyle = '#b45309';
+      ctx.font = 'bold 14px monospace';
       const weightsStr = `(${item.weights!.length} box): ${item.weights!.join(', ')}`;
-      const truncated = weightsStr.length > 52 ? `${weightsStr.slice(0, 49)}...` : weightsStr;
-      ctx.fillText(truncated, colX.nama, curY + 46);
+      const truncated = weightsStr.length > 50 ? `${weightsStr.slice(0, 47)}...` : weightsStr;
+      ctx.fillText(truncated, colX.nama, curY + 54);
     }
 
     ctx.textAlign = 'right';
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = 'bold 16px monospace';
-    ctx.fillText(formatKg(item.beratKg), colX.berat, curY + (hasWeights ? 26 : 29));
+    ctx.fillStyle = '#0284c7';
+    ctx.font = 'bold 22px monospace';
+    ctx.fillText(formatKg(item.beratKg), colX.berat, curY + (hasWeights ? 30 : 34));
 
-    ctx.fillStyle = '#cbd5e1';
-    ctx.font = 'bold 15px monospace';
-    ctx.fillText(item.hargaPerKg ? formatRupiah(item.hargaPerKg) : '-', colX.harga, curY + (hasWeights ? 26 : 29));
+    ctx.fillStyle = '#334155';
+    ctx.font = 'bold 18px monospace';
+    ctx.fillText(item.hargaPerKg ? formatRupiah(item.hargaPerKg) : '-', colX.harga, curY + (hasWeights ? 30 : 34));
 
-    ctx.fillStyle = item.subtotal ? '#4ade80' : '#64748b';
-    ctx.font = 'bold 16px monospace';
-    ctx.fillText(item.subtotal ? formatRupiah(item.subtotal) : '-', colX.subtotal, curY + (hasWeights ? 26 : 29));
+    ctx.fillStyle = item.subtotal ? '#047857' : '#64748b';
+    ctx.font = 'bold 22px monospace';
+    ctx.fillText(item.subtotal ? formatRupiah(item.subtotal) : '-', colX.subtotal, curY + (hasWeights ? 30 : 34));
 
     curY += rowH;
   });
 
   // Table Total Row
-  const totalRowH = 50;
-  ctx.fillStyle = '#1e293b';
+  const totalRowH = 56;
+  ctx.fillStyle = '#e0f2fe';
   ctx.beginPath();
   if (ctx.roundRect) {
     ctx.roundRect(padding, curY, contentWidth, totalRowH, [0, 0, 12, 12]);
@@ -696,34 +760,37 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
     ctx.rect(padding, curY, contentWidth, totalRowH);
   }
   ctx.fill();
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 2;
+  ctx.stroke();
 
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#38bdf8';
-  ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
-  ctx.fillText('TOTAL IKAN', colX.no, curY + 31);
+  ctx.fillStyle = '#0c4a6e';
+  ctx.font = '900 18px system-ui, -apple-system, sans-serif';
+  ctx.fillText('TOTAL IKAN', colX.no, curY + 36);
 
   ctx.textAlign = 'right';
-  ctx.fillStyle = '#38bdf8';
-  ctx.font = 'bold 16px monospace';
-  ctx.fillText(`${formatTon(record.totalTonase)} (${formatKg(record.totalBeratKg)})`, colX.berat, curY + 31);
+  ctx.fillStyle = '#0284c7';
+  ctx.font = '900 22px monospace';
+  ctx.fillText(`${formatTon(record.totalTonase)} (${formatKg(record.totalBeratKg)})`, colX.berat, curY + 36);
 
-  ctx.fillStyle = '#4ade80';
-  ctx.font = 'bold 17px monospace';
-  ctx.fillText(formatRupiah(record.totalHarga), colX.subtotal, curY + 31);
+  ctx.fillStyle = '#047857';
+  ctx.font = '900 24px monospace';
+  ctx.fillText(formatRupiah(record.totalHarga), colX.subtotal, curY + 36);
 
-  curY += totalRowH + 22 + gapBonus;
+  curY += totalRowH + 20 + gapBonus;
 
-  // 5. Section 3: Potongan Biaya
+  // 6. Section 3: Potongan Biaya (Light Theme)
   const feeSectionNum = imgObj ? '3' : '2';
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#f87171';
-  ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = '#991b1b';
+  ctx.font = '900 18px system-ui, -apple-system, sans-serif';
   ctx.fillText(`${feeSectionNum}. POTONGAN BIAYA OPERASIONAL (ESTIMASI)`, padding, curY);
 
   curY += 14;
 
-  const feeBoxH = 185;
-  ctx.fillStyle = '#0f172a';
+  const feeBoxH = 205;
+  ctx.fillStyle = '#fff1f2';
   ctx.beginPath();
   if (ctx.roundRect) {
     ctx.roundRect(padding, curY, contentWidth, feeBoxH, 16);
@@ -731,8 +798,8 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
     ctx.rect(padding, curY, contentWidth, feeBoxH);
   }
   ctx.fill();
-  ctx.strokeStyle = '#334155';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#fecdd3';
+  ctx.lineWidth = 2;
   ctx.stroke();
 
   const feeRows = [
@@ -754,48 +821,48 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
     },
   ];
 
-  let feeRowY = curY + 28;
+  let feeRowY = curY + 32;
   feeRows.forEach((fr) => {
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#e2e8f0';
-    ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#1e293b';
+    ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
     ctx.fillText(fr.name, padding + 22, feeRowY);
 
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '12.5px system-ui, -apple-system, sans-serif';
-    ctx.fillText(fr.sub, padding + 165, feeRowY);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '15px system-ui, -apple-system, sans-serif';
+    ctx.fillText(fr.sub, padding + 180, feeRowY);
 
     ctx.textAlign = 'right';
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 15.5px monospace';
+    ctx.fillStyle = '#b91c1c';
+    ctx.font = 'bold 20px monospace';
     ctx.fillText(formatRupiah(fr.val), padding + contentWidth - 22, feeRowY);
 
-    feeRowY += 30;
+    feeRowY += 34;
   });
 
   // Divider inside fee box
-  ctx.strokeStyle = '#334155';
+  ctx.strokeStyle = '#fca5a5';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(padding + 22, feeRowY - 6);
   ctx.lineTo(padding + contentWidth - 22, feeRowY - 6);
   ctx.stroke();
 
-  feeRowY += 20;
+  feeRowY += 22;
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#f87171';
-  ctx.font = 'bold 15.5px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = '#991b1b';
+  ctx.font = '900 18px system-ui, -apple-system, sans-serif';
   ctx.fillText('TOTAL BIAYA POTONGAN', padding + 22, feeRowY);
 
   ctx.textAlign = 'right';
-  ctx.font = 'bold 17px monospace';
+  ctx.font = '900 24px monospace';
   ctx.fillText(formatRupiah(record.totalBiaya), padding + contentWidth - 22, feeRowY);
 
-  curY += feeBoxH + 22 + gapBonus;
+  curY += feeBoxH + 20 + gapBonus;
 
-  // 6. Section 4: Total Bersih (Netto) Grand Total Banner
-  const nettoH = 108;
-  ctx.fillStyle = '#1c1917';
+  // 7. Section 4: HASIL BERSIH (NETTO) GRAND TOTAL HERO BANNER
+  const nettoH = 118;
+  ctx.fillStyle = '#ecfdf5'; // Rich Light Emerald
   ctx.beginPath();
   if (ctx.roundRect) {
     ctx.roundRect(padding, curY, contentWidth, nettoH, 18);
@@ -803,58 +870,58 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
     ctx.rect(padding, curY, contentWidth, nettoH);
   }
   ctx.fill();
-  ctx.strokeStyle = '#f59e0b';
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#059669';
+  ctx.lineWidth = 3.5;
   ctx.stroke();
 
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#fbbf24';
-  ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
-  ctx.fillText('TOTAL BERSIH (NETTO) DITERIMA', padding + 24, curY + 36);
+  ctx.fillStyle = '#065f46';
+  ctx.font = '900 18px system-ui, -apple-system, sans-serif';
+  ctx.fillText('TOTAL HASIL BERSIH (NETTO) DITERIMA', padding + 24, curY + 40);
 
-  ctx.fillStyle = '#cbd5e1';
-  ctx.font = '13px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = '#047857';
+  ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
   ctx.fillText(
     `Total Harga (${formatRupiah(record.totalHarga)}) - Potongan (${formatRupiah(record.totalBiaya)})`,
     padding + 24,
-    curY + 70
+    curY + 76
   );
 
   ctx.textAlign = 'right';
-  ctx.fillStyle = '#fef08a';
-  ctx.font = 'bold 36px monospace';
-  ctx.fillText(formatRupiah(record.bersih), padding + contentWidth - 24, curY + 64);
+  ctx.fillStyle = '#064e3b';
+  ctx.font = '900 50px monospace';
+  ctx.fillText(formatRupiah(record.bersih), padding + contentWidth - 24, curY + 74);
 
-  curY += nettoH + 22 + gapBonus;
+  curY += nettoH + 20 + gapBonus;
 
-  // 7. Social Media Badges
+  // 8. Social Media Info
   const fbLink = settings.mediaSosial?.facebook || 'https://www.facebook.com/1swandi';
   if (fbLink) {
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
-    ctx.fillText(`Facebook: 1swandi · fb.com/1swandi`, baseWidth / 2, curY);
-    curY += 22;
+    ctx.fillStyle = '#0284c7';
+    ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+    ctx.fillText('Facebook: 1swandi · https://www.facebook.com/1swandi', baseWidth / 2, curY);
+    curY += 24;
   }
 
-  // 8. Disclaimer & Branding Footer
+  // 9. Disclaimer & Footer
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = 'italic 12px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = '#64748b';
+  ctx.font = 'italic 13.5px system-ui, -apple-system, sans-serif';
 
   const downloadLink = settings.linkDownloadAplikasi || '[LINK DOWNLOAD APLIKASI]';
   const autoNote = settings.teksCatatanOtomatis.replace('[LINK DOWNLOAD APLIKASI]', downloadLink);
   ctx.fillText(autoNote, baseWidth / 2, curY, contentWidth);
 
   curY += 26;
-  ctx.fillStyle = '#64748b';
-  ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
   const timestampStr = new Date().toLocaleDateString('id-ID', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   });
-  ctx.fillText(`Dicetak otomatis oleh Aplikasi Catatan by Iswandi (Format Potret 9:16) · ${timestampStr}`, baseWidth / 2, curY);
+  ctx.fillText(`Dicetak otomatis oleh Aplikasi Catatan by Iswandi (Format Potret 9:16 HD) · ${timestampStr}`, baseWidth / 2, curY);
 
   return canvas.toDataURL('image/png');
 }
