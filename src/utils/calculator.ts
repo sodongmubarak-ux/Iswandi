@@ -121,14 +121,15 @@ export function calculateAbk(
 }
 
 /**
- * Rumus Bongkar (Estimasi) - Kelipatan Penuh (Bukan Proporsional):
- * Jika tonase == 0 -> Bongkar = 0
- * Jika tonase <= 1 -> Bongkar = Rp1.400.000
- * Jika tonase > 1 -> Bongkar = Rp1.400.000 + (Math.ceil(Tonase - 1) * Rp700.000)
+ * Rumus Bongkar (Estimasi) - Kelipatan Penuh:
+ * - Jika tonase < 1 -> Bongkar = Rp 0 (di bawah 1 ton itu 0)
+ * - Jika tonase == 1 -> Bongkar = Rp 1.400.000
+ * - Jika tonase > 1 -> Bongkar = Rp 1.400.000 + (Math.ceil(Tonase - 1) * Rp 700.000)
  * Contoh:
- * 1 Ton = Rp1.400.000
- * 2 Ton = Rp2.100.000 (+700rb)
- * 2,4 Ton = Rp2.800.000 (masuk kelipatan ke-3, +700rb lagi)
+ * 0,5 Ton = Rp 0
+ * 1 Ton = Rp 1.400.000
+ * 2 Ton = Rp 2.100.000 (+700rb)
+ * 2,4 Ton = Rp 2.800.000 (masuk kelipatan ke-3, +700rb lagi)
  */
 export function calculateBongkar(
   tonase: number,
@@ -136,10 +137,7 @@ export function calculateBongkar(
   kenaikanPerTon = 700000,
   batasTon = 1
 ): number {
-  if (tonase <= 0) return 0;
-  if (tonase <= batasTon) {
-    return tarifDasar;
-  }
+  if (tonase < batasTon) return 0; // Di bawah 1 ton itu 0
   const extraTons = Math.ceil(tonase - batasTon);
   return tarifDasar + extraTons * kenaikanPerTon;
 }
@@ -286,10 +284,21 @@ export function runFormulaVerificationTests(): {
   });
 
   // Uji Bongkar:
+  // 0,8 ton = Rp0 (dibawah 1 ton itu 0)
+  const b08 = calculateBongkar(0.8);
+  results.push({
+    title: 'Uji Bongkar 0,8 ton (< 1 ton = 0)',
+    category: 'bongkar',
+    inputDesc: '0,8 ton',
+    expected: 0,
+    actual: b08,
+    passed: b08 === 0,
+  });
+
   // 1 ton = Rp1.400.000
   const b1 = calculateBongkar(1);
   results.push({
-    title: 'Uji Bongkar 1 ton',
+    title: 'Uji Bongkar 1 ton (Batas Dasar)',
     category: 'bongkar',
     inputDesc: '1 ton',
     expected: 1400000,

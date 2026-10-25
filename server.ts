@@ -62,29 +62,62 @@ Tugas Anda:
   "catatan": "Keterangan tambahan yang tertulis"
 }`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: systemPrompt },
-            {
-              inlineData: {
-                mimeType,
-                data: cleanBase64,
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: systemPrompt },
+              {
+                inlineData: {
+                  mimeType,
+                  data: cleanBase64,
+                },
               },
-            },
+              {
+                text: 'Tolong baca dan digitalisasi catatan tulisan tangan hasil ikan dari foto ini ke dalam format JSON yang diminta.',
+              },
+            ],
+          },
+        ],
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+    } catch (primaryErr: unknown) {
+      const errStr = String(primaryErr);
+      if (errStr.includes('503') || errStr.includes('high demand') || errStr.includes('UNAVAILABLE') || errStr.includes('429')) {
+        console.warn('Gemini 3.8 Flash high demand, trying Gemini 3.1 Flash Lite fallback...');
+        response = await ai.models.generateContent({
+          model: 'gemini-3.1-flash-lite',
+          contents: [
             {
-              text: 'Tolong baca dan digitalisasi catatan tulisan tangan hasil ikan dari foto ini ke dalam format JSON yang diminta.',
+              role: 'user',
+              parts: [
+                { text: systemPrompt },
+                {
+                  inlineData: {
+                    mimeType,
+                    data: cleanBase64,
+                  },
+                },
+                {
+                  text: 'Tolong baca dan digitalisasi catatan tulisan tangan hasil ikan dari foto ini ke dalam format JSON yang diminta.',
+                },
+              ],
             },
           ],
-        },
-      ],
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
+          config: {
+            responseMimeType: 'application/json',
+          },
+        });
+      } else {
+        throw primaryErr;
+      }
+    }
 
     const responseText = response.text || '{}';
     let parsedData = {};

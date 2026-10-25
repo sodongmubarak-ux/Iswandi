@@ -630,7 +630,7 @@ export const TambahManualView: React.FC<TambahManualViewProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-200">3. Bongkar (Estimasi)</span>
               <span className="text-[10px] text-slate-500">
-                (&le;1t Rp1,4 Jt, +Rp700rb/kelipatan ton)
+                (&lt;1t Rp0, 1t Rp1,4 Jt, +Rp700rb/kelipatan ton)
               </span>
               {bongkarIsManual && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">

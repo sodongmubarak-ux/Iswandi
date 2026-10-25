@@ -15,9 +15,15 @@ import {
   Trash2,
   Plus,
   Info,
+  Zap,
+  WifiOff,
+  Scale,
+  ListPlus,
+  X,
 } from 'lucide-react';
 import { AppSettings, BookkeepingRecord, FishItem } from '../types';
 import { calculateBookkeeping, calculateTotalKg, formatKg, formatRupiah, formatTon } from '../utils/calculator';
+import { parseFishTallySheetOffline } from '../utils/tallyParser';
 
 interface ScanCatatanViewProps {
   settings: AppSettings;
@@ -33,11 +39,14 @@ export const ScanCatatanView: React.FC<ScanCatatanViewProps> = ({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
+  const [scanMode, setScanMode] = useState<'gemini' | 'offline'>('gemini');
   const [rawPhoto, setRawPhoto] = useState<string | null>(null);
   const [photoRotation, setPhotoRotation] = useState<number>(0);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanStep, setScanStep] = useState<string>('');
   const [scanError, setScanError] = useState<string | null>(null);
+  const [isHighDemandError, setIsHighDemandError] = useState<boolean>(false);
+
   const [scanResult, setScanResult] = useState<{
     tanggal: string;
     rumpon: string;
@@ -60,13 +69,19 @@ export const ScanCatatanView: React.FC<ScanCatatanViewProps> = ({
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
 
+  // Detected individual tally weights (per keranjang)
+  const [tallyWeights, setTallyWeights] = useState<number[]>([]);
+  const [newBasketInput, setNewBasketInput] = useState<string>('');
+
   // File loading handler
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setScanError(null);
+    setIsHighDemandError(false);
     setScanResult(null);
+    setTallyWeights([]);
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -108,8 +123,60 @@ export const ScanCatatanView: React.FC<ScanCatatanViewProps> = ({
     };
   };
 
-  // Perform AI Scan via backend
-  const handleProcessScan = async () => {
+  // Perform Offline Scan via Tesseract.js directly on device
+  const runOfflineScan = async (photoData: string) => {
+    setScanStep('Mempersiapkan mesin pembaca offline (Tesseract OCR)...');
+    const { createWorker } = await import('tesseract.js');
+    const worker = await createWorker('eng', 1, {
+      logger: (m) => {
+        if (m.status === 'recognizing text') {
+          const pct = Math.round((m.progress || 0) * 100);
+          setScanStep(`Membaca catatan tanpa internet: ${pct}%...`);
+        }
+      },
+    });
+
+    setScanStep('Memindai angka timbangan & teks catatan...');
+    const ret = await worker.recognize(photoData);
+    await worker.terminate();
+
+    const ocrText = ret.data.text || '';
+    const parsed = parseFishTallySheetOffline(ocrText);
+
+    const detectedWeights = parsed.weights;
+    setTallyWeights(detectedWeights);
+
+    const mappedItems: FishItem[] = [
+      {
+        id: `item-${Date.now()}-0`,
+        namaIkan: parsed.fishType || 'Tongkol',
+        beratKg: parsed.totalKg,
+        confidence: detectedWeights.length > 0 ? 'high' : 'uncertain',
+      },
+    ];
+
+    const detectedTanggal = parsed.tanggal || new Date().toISOString().split('T')[0];
+    const detectedRumpon = parsed.rumpon || 'Rumpon Utama';
+
+    setScanResult({
+      tanggal: detectedTanggal,
+      rumpon: detectedRumpon,
+      items: mappedItems,
+      catatan: `Scan Offline: Terdeteksi ${detectedWeights.length} keranjang timbangan.`,
+      unreadableNotes: parsed.unreadableNotes,
+    });
+
+    setTanggal(detectedTanggal);
+    setRumpon(detectedRumpon);
+    setItems(mappedItems);
+    setCatatan(`Scan Offline: Terdeteksi ${detectedWeights.length} keranjang timbangan.`);
+    setActiveTabPreview('comparison');
+  };
+
+  // Main Scan Trigger (Gemini or Offline based on selected mode)
+  const handleProcessScan = async (overrideMode?: 'gemini' | 'offline') => {
+    const currentMode = overrideMode || scanMode;
+
     if (!rawPhoto) {
       setScanError('Silakan ambil foto atau pilih foto dari galeri terlebih dahulu.');
       return;
@@ -117,7 +184,25 @@ export const ScanCatatanView: React.FC<ScanCatatanViewProps> = ({
 
     setIsScanning(true);
     setScanError(null);
-    setScanStep('Menghubungi model Gemini...');
+    setIsHighDemandError(false);
+
+    // MODE OFFLINE
+    if (currentMode === 'offline') {
+      try {
+        await runOfflineScan(rawPhoto);
+      } catch (offlineErr: unknown) {
+        console.error('Offline scan error:', offlineErr);
+        const msg = offlineErr instanceof Error ? offlineErr.message : 'Gagal memproses OCR offline.';
+        setScanError(`Scan Offline gagal: ${msg}. Anda dapat memasukkan data secara manual.`);
+      } finally {
+        setIsScanning(false);
+        setScanStep('');
+      }
+      return;
+    }
+
+    // MODE GEMINI (ONLINE)
+    setScanStep('Menghubungi model AI Gemini...');
 
     try {
       setScanStep('Menganalisis tulisan tangan catatan hasil ikan...');
@@ -131,6 +216,7 @@ export const ScanCatatanView: React.FC<ScanCatatanViewProps> = ({
       } = {};
 
       let success = false;
+      let lastErrorMessage = '';
 
       // 1. Coba lewat backend proxy /api/gemini/scan terlebih dahulu
       try {
@@ -154,17 +240,28 @@ export const ScanCatatanView: React.FC<ScanCatatanViewProps> = ({
           const data = await res.json();
           parsed = data.data || {};
           success = true;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          lastErrorMessage = errData.error || `Server status ${res.status}`;
+          if (res.status === 503 || lastErrorMessage.toLowerCase().includes('high demand') || lastErrorMessage.includes('503')) {
+            setIsHighDemandError(true);
+          }
         }
       } catch (fetchErr) {
         console.warn('Backend proxy scan tidak terjangkau (kemungkinan berjalan di APK native offline):', fetchErr);
       }
 
-      // 2. Jika backend tidak tersedia (misal di aplikasi APK mandiri di HP) dan pengguna mengisi API key di Pengaturan:
+      // 2. Jika backend tidak sukses, coba langsung via GoogleGenAI client (misal di HP dengan user API key)
       if (!success) {
         const clientApiKey = settings.userApiKey?.trim();
         if (!clientApiKey) {
+          if (isHighDemandError || lastErrorMessage.toLowerCase().includes('high demand') || lastErrorMessage.includes('503')) {
+            setIsHighDemandError(true);
+            throw new Error('Model Gemini sedang mengalami lonjakan beban tinggi (High Demand 503). Silakan beralih ke Mode Scan Offline di bawah.');
+          }
           throw new Error(
-            'Gagal menghubungi server scan AI. Jika Anda menggunakan aplikasi APK di HP Android, silakan buka menu Pengaturan dan masukkan API Key Google Gemini gratis Anda agar pemindaian foto AI berfungsi langsung dari HP.'
+            lastErrorMessage ||
+            'Gagal menghubungi server scan AI. Jika menggunakan aplikasi APK di HP Android, silakan gunakan Mode Scan Offline atau masukkan API Key Google Gemini di Pengaturan.'
           );
         }
 
@@ -190,29 +287,52 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
   "catatan": "Keterangan tambahan"
 }`;
 
-        const geminiRes = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                { text: prompt },
-                {
-                  inlineData: {
-                    mimeType: 'image/jpeg',
-                    data: cleanBase64,
+        // Coba model primary 3.8-flash, lalu fallback ke 3.1-flash-lite jika 503/429
+        let geminiRes;
+        try {
+          geminiRes = await ai.models.generateContent({
+            model: 'gemini-3.8-flash',
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: prompt },
+                  { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
+                  { text: 'Digitalisasi catatan tulisan tangan ikan ini ke JSON.' },
+                ],
+              },
+            ],
+            config: { responseMimeType: 'application/json' },
+          });
+        } catch (directErr: unknown) {
+          const errStr = String(directErr);
+          if (errStr.includes('503') || errStr.includes('high demand') || errStr.includes('UNAVAILABLE') || errStr.includes('429')) {
+            setScanStep('Gemini 3.8 sibuk, mencoba model alternatif Gemini Flash Lite...');
+            try {
+              geminiRes = await ai.models.generateContent({
+                model: 'gemini-3.1-flash-lite',
+                contents: [
+                  {
+                    role: 'user',
+                    parts: [
+                      { text: prompt },
+                      { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
+                      { text: 'Digitalisasi catatan tulisan tangan ikan ini ke JSON.' },
+                    ],
                   },
-                },
-                { text: 'Digitalisasi catatan tulisan tangan ikan ini ke JSON.' },
-              ],
-            },
-          ],
-          config: {
-            responseMimeType: 'application/json',
-          },
-        });
+                ],
+                config: { responseMimeType: 'application/json' },
+              });
+            } catch (fallbackErr: unknown) {
+              setIsHighDemandError(true);
+              throw new Error('Layanan Gemini sedang mengalami lonjakan beban tinggi (High Demand 503). Silakan beralih ke Mode Scan Offline.');
+            }
+          } else {
+            throw directErr;
+          }
+        }
 
-        const text = geminiRes.text || '{}';
+        const text = geminiRes?.text || '{}';
         try {
           parsed = JSON.parse(text);
           success = true;
@@ -259,9 +379,49 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
       console.error(err);
       const msg = err instanceof Error ? err.message : 'Terjadi kesalahan saat memproses scan AI.';
       setScanError(msg);
+      if (msg.toLowerCase().includes('high demand') || msg.includes('503') || msg.includes('UNAVAILABLE')) {
+        setIsHighDemandError(true);
+      }
     } finally {
       setIsScanning(false);
       setScanStep('');
+    }
+  };
+
+  // Switch to offline mode and run immediately
+  const handleSwitchToOfflineAndScan = () => {
+    setScanMode('offline');
+    setScanError(null);
+    setIsHighDemandError(false);
+    handleProcessScan('offline');
+  };
+
+  // Add individual basket weight manually or edit
+  const handleAddBasketWeight = () => {
+    const val = parseFloat(newBasketInput);
+    if (!val || val <= 0) return;
+
+    const nextWeights = [...tallyWeights, Math.round(val * 10) / 10];
+    setTallyWeights(nextWeights);
+    setNewBasketInput('');
+
+    // Update item weight
+    const newTotal = nextWeights.reduce((a, b) => a + b, 0);
+    if (items.length > 0) {
+      const nextItems = [...items];
+      nextItems[0] = { ...nextItems[0], beratKg: Math.round(newTotal * 10) / 10 };
+      setItems(nextItems);
+    }
+  };
+
+  const handleRemoveBasketWeight = (idx: number) => {
+    const nextWeights = tallyWeights.filter((_, i) => i !== idx);
+    setTallyWeights(nextWeights);
+    const newTotal = nextWeights.reduce((a, b) => a + b, 0);
+    if (items.length > 0) {
+      const nextItems = [...items];
+      nextItems[0] = { ...nextItems[0], beratKg: Math.round(newTotal * 10) / 10 };
+      setItems(nextItems);
     }
   };
 
@@ -270,7 +430,6 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
     setItems((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
-      // auto calculate subtotal if both are valid
       if (field === 'beratKg' || field === 'hargaPerKg') {
         const b = field === 'beratKg' ? Number(value) : next[index].beratKg;
         const h = field === 'hargaPerKg' ? Number(value) : next[index].hargaPerKg;
@@ -386,12 +545,66 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
             <Camera className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-white">Scan Buku Catatan AI</h2>
+            <h2 className="text-base font-bold text-white">Scan Buku Catatan Ikan</h2>
             <p className="text-xs text-slate-400">
-              Ambil foto halaman buku catatan ikan, AI membaca tulisan tangan & menghitung otomatis.
+              Pindai foto buku catatan tulisan tangan hasil tangkapan nelayan dengan Mode AI Gemini atau Mode Offline.
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Mode Switcher: AI Gemini vs Offline */}
+      <div className="p-2 rounded-2xl bg-slate-900/95 border border-slate-800 space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            Pilih Mode Pemindaian:
+          </span>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${scanMode === 'offline' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
+            {scanMode === 'offline' ? 'Bebas Kuota / Anti Error' : 'Kecerdasan Cloud AI'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setScanMode('gemini');
+              setScanError(null);
+              setIsHighDemandError(false);
+            }}
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-xs transition-all ${
+              scanMode === 'gemini'
+                ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-slate-700/60'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 shrink-0" />
+            <span>Mode AI Gemini</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setScanMode('offline');
+              setScanError(null);
+              setIsHighDemandError(false);
+            }}
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-xs transition-all ${
+              scanMode === 'offline'
+                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 shadow-md shadow-emerald-500/20'
+                : 'bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-slate-700/60'
+            }`}
+          >
+            <Zap className="w-4 h-4 shrink-0 text-yellow-400" />
+            <span>Mode Offline</span>
+          </button>
+        </div>
+
+        <p className="text-[11px] text-slate-400 px-1 leading-relaxed">
+          {scanMode === 'offline'
+            ? '⚡ Mode Offline: Memindai langsung di HP Anda tanpa server/kuota internet. Sangat lancar, anti-gangguan, dan bebas error 503 saat traffic Gemini padat.'
+            : '✨ Mode AI Gemini: Membaca tulisan tangan, tabel angka, dan rincian jenis ikan lengkap secara otomatis via model AI.'}
+        </p>
       </div>
 
       {/* Photo Picker & Camera Action Buttons */}
@@ -436,6 +649,7 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
                 onClick={() => {
                   setRawPhoto(null);
                   setScanResult(null);
+                  setTallyWeights([]);
                 }}
                 className="p-2 rounded-xl bg-red-950/60 border border-red-900/50 text-red-300 hover:text-red-200 transition-colors"
                 title="Hapus Foto"
@@ -456,19 +670,27 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
           {/* Trigger Scan Button */}
           {!scanResult && (
             <button
-              onClick={handleProcessScan}
+              onClick={() => handleProcessScan()}
               disabled={isScanning}
-              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-amber-500/20 active:scale-95 disabled:opacity-50 transition-all"
+              className={`w-full py-3.5 px-4 rounded-2xl ${
+                scanMode === 'offline'
+                  ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950'
+                  : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950'
+              } font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-amber-500/20 active:scale-95 disabled:opacity-50 transition-all`}
             >
               {isScanning ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
-                  <span>{scanStep || 'Memproses AI Scan...'}</span>
+                  <span>{scanStep || 'Memproses Scan...'}</span>
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 fill-slate-950" />
-                  <span>PROSES SCAN AI</span>
+                  {scanMode === 'offline' ? (
+                    <Zap className="w-4 h-4 fill-slate-950" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 fill-slate-950" />
+                  )}
+                  <span>{scanMode === 'offline' ? 'PROSES SCAN OFFLINE' : 'PROSES SCAN AI GEMINI'}</span>
                 </>
               )}
             </button>
@@ -488,14 +710,32 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
         </div>
       )}
 
-      {/* Error Banner */}
+      {/* Error Banner with Offline Quick Switch */}
       {scanError && (
-        <div className="p-4 rounded-2xl bg-red-950/80 border border-red-800/80 flex items-start gap-3 text-xs text-red-200">
-          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold text-red-300">Peringatan Scan</p>
-            <p className="mt-0.5">{scanError}</p>
+        <div className="p-4 rounded-2xl bg-red-950/80 border border-red-800/80 space-y-2.5 text-xs text-red-200">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-red-300">Peringatan Scan</p>
+              <p className="mt-0.5 leading-relaxed">{scanError}</p>
+            </div>
           </div>
+
+          {(isHighDemandError || scanMode === 'gemini') && rawPhoto && (
+            <div className="pt-2 border-t border-red-900/60 flex items-center justify-between">
+              <span className="text-[11px] text-amber-200">
+                Solusi Cepat: Beralih ke Scan Offline tanpa server
+              </span>
+              <button
+                type="button"
+                onClick={handleSwitchToOfflineAndScan}
+                className="py-1.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-black text-[11px] flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+              >
+                <Zap className="w-3.5 h-3.5 fill-slate-950" />
+                <span>Pindai Offline Sekarang</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -538,7 +778,7 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
             </div>
 
             <button
-              onClick={handleProcessScan}
+              onClick={() => handleProcessScan()}
               disabled={isScanning}
               className="text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700"
             >
@@ -552,7 +792,7 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
             <div className="p-3.5 rounded-2xl bg-amber-950/40 border border-amber-800/60 text-xs text-amber-200 space-y-1">
               <div className="flex items-center gap-2 font-bold text-amber-300">
                 <AlertTriangle className="w-4 h-4 text-amber-400" />
-                <span>Perlu Diperiksa (Tulisan Samar/Dicoret)</span>
+                <span>Perlu Diperiksa (Tulisan Samar / Angka Manual)</span>
               </div>
               <ul className="list-disc list-inside space-y-0.5 text-slate-300 pl-1 text-[11px]">
                 {scanResult.unreadableNotes.map((n, idx) => (
@@ -620,6 +860,63 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
                   </div>
                 </div>
               </div>
+
+              {/* Tally Basket Inspector (Interactive individual basket weights) */}
+              {tallyWeights.length > 0 && (
+                <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Scale className="w-4 h-4 text-emerald-400" />
+                      <span className="text-xs font-bold text-slate-200">
+                        Keranjang Timbangan ({tallyWeights.length} Keranjang)
+                      </span>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-emerald-400">
+                      Total: {formatKg(tallyWeights.reduce((a, b) => a + b, 0))} ({formatTon(tallyWeights.reduce((a, b) => a + b, 0) / 1000)})
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-1 bg-slate-950/80 rounded-2xl border border-slate-800/80">
+                    {tallyWeights.map((w, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800/90 border border-slate-700/80 text-xs font-mono text-slate-200 shadow-sm"
+                      >
+                        <span className="text-[10px] text-slate-400">#{idx + 1}:</span>
+                        <strong className="text-emerald-300 font-bold">{w} kg</strong>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveBasketWeight(idx)}
+                          className="text-slate-400 hover:text-red-400 ml-0.5 p-0.5 rounded"
+                          title="Hapus keranjang ini"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Add missing basket */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="number"
+                      placeholder="Tambah berat keranjang (kg)..."
+                      value={newBasketInput}
+                      onChange={(e) => setNewBasketInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddBasketWeight()}
+                      className="flex-1 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs font-mono focus:border-amber-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddBasketWeight}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 font-bold text-xs flex items-center gap-1 border border-slate-700 active:scale-95 transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Tambah Keranjang</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Fish Items Table */}
               <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
@@ -784,7 +1081,7 @@ Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
                     <div>
                       <span className="font-semibold text-slate-300">Bongkar (Estimasi)</span>
                       <span className="text-[10px] text-slate-500 ml-1.5">
-                        (&le;1t Rp1,4 Jt, +Rp700rb/kelipatan ton)
+                        (&lt;1t Rp0, 1t Rp1,4 Jt, +Rp700rb/kelipatan ton)
                       </span>
                     </div>
                     <span className="font-bold text-slate-200 tabular-nums">

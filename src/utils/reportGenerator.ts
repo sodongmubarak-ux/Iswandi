@@ -249,7 +249,7 @@ export async function generatePdfReport(
     },
     {
       name: 'Bongkar (Estimasi)',
-      desc: '(<=1 Ton Rp1,4 Jt, +Rp700rb/kelipatan ton)',
+      desc: '(<1 Ton Rp0, 1 Ton Rp1,4 Jt, +Rp700rb/kelipatan ton)',
       val: record.biayaBongkar,
       isManual: record.biayaBongkarIsManual,
     },
@@ -688,7 +688,7 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
     },
     {
       name: 'Bongkar (Estimasi)',
-      sub: '(≤1t Rp1,4 Jt, +Rp700rb/kelipatan ton)',
+      sub: '(<1t Rp0, 1t Rp1,4 Jt, +Rp700rb/kelipatan ton)',
       val: record.biayaBongkar,
     },
     {

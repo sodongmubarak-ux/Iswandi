@@ -17,6 +17,11 @@ import {
   UploadCloud,
   FileArchive,
   Loader2,
+  User,
+  Heart,
+  MessageCircle,
+  Mail,
+  Sparkles,
 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { DEFAULT_SETTINGS, formatRupiah, runFormulaVerificationTests, TestVerificationResult } from '../utils/calculator';
@@ -36,7 +41,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
   onOpenGitHub,
 }) => {
   const [formData, setFormData] = useState<AppSettings>(initialSettings);
-  const [activeTab, setActiveTab] = useState<'rumus' | 'identitas' | 'sosial' | 'cadangan' | 'pengujian' | 'apk'>('apk');
+  const [activeTab, setActiveTab] = useState<'rumus' | 'identitas' | 'sosial' | 'cadangan' | 'pengujian' | 'about'>('about');
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isDownloadingZip, setIsDownloadingZip] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
@@ -284,12 +289,13 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
           Cadangkan Data
         </button>
         <button
-          onClick={() => setActiveTab('apk')}
-          className={`px-3 py-2 rounded-xl whitespace-nowrap transition-all ${
-            activeTab === 'apk' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
+          onClick={() => setActiveTab('about')}
+          className={`px-3.5 py-2 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 font-bold ${
+            activeTab === 'about' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
           }`}
         >
-          Panduan APK
+          <User className="w-3.5 h-3.5" />
+          <span>About Me</span>
         </button>
       </div>
 
@@ -330,13 +336,13 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                 2. Rumus Bongkar (Estimasi)
               </span>
               <span className="text-[11px] text-slate-400 font-mono">
-                Kelipatan penuh: &le;1 Ton Rp1,4 Jt, naik +Rp700rb/ton
+                &lt;1 Ton: Rp0 · 1 Ton: Rp1,4 Jt · +Rp700rb/kelipatan ton
               </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Tarif Dasar Bongkar (&le; 1 Ton)
+                  Tarif Dasar Bongkar (1 Ton)
                 </label>
                 <input
                   type="number"
@@ -347,7 +353,7 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-xs font-mono tabular-nums focus:border-amber-500 focus:outline-none"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">Standar: Rp1.400.000 (1 Ton)</p>
+                <p className="text-[10px] text-slate-500 mt-1">Standar: Rp1.400.000 (Di bawah 1 Ton = Rp 0)</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -803,163 +809,183 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
         </div>
       )}
 
-      {/* TAB 6: PANDUAN BUILD APK ANDROID & GITHUB */}
-      {activeTab === 'apk' && (
+      {/* TAB 6: ABOUT ME (TENTANG PEMBUAT) */}
+      {activeTab === 'about' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Smartphone className="w-5 h-5 text-amber-400" />
-                <h3 className="text-sm font-extrabold text-amber-400 uppercase tracking-wider">
-                  Panduan & Build APK Android
-                </h3>
+          <div className="p-5 sm:p-6 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-6">
+            {/* Header Profile */}
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
+              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 text-slate-950 flex items-center justify-center font-black text-3xl shadow-xl shadow-amber-500/20 shrink-0 border-2 border-amber-300">
+                IS
               </div>
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
-                100% Khusus HP Android
-              </span>
+              <div className="space-y-1 flex-1">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  <h3 className="text-xl font-black text-white tracking-tight">Iswandi</h3>
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
+                    Creator & Tech Enthusiast
+                  </span>
+                </div>
+                <p className="text-xs text-amber-400 font-medium">
+                  Pengembang & Inisiator Aplikasi Catatan Hasil Ikan
+                </p>
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 pt-1">
+                  <span className="px-2 py-0.5 rounded-md bg-slate-950 text-slate-400 text-[10px] font-mono border border-slate-800">
+                    #AndroidModder
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-slate-950 text-slate-400 text-[10px] font-mono border border-slate-800">
+                    #CustomROM
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-slate-950 text-slate-400 text-[10px] font-mono border border-slate-800">
+                    #AIAppBuilder
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Anda tidak memerlukan komputer/PC untuk membuat file APK aplikasi ini. Semua proses kompilasi Java, Android SDK, dan Gradle dapat berjalan otomatis di cloud GitHub Actions.
-            </p>
-
-            {/* SEKSI 1: KIRIM OTOMATIS KE GITHUB (SOLUSI HP ANDROID) */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-slate-900 to-slate-900 border-2 border-amber-500/50 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
-                    <Github className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="font-extrabold text-amber-300 text-xs block">
-                      Kirim Otomatis ke GitHub (Paling Mudah)
-                    </span>
-                    <span className="text-[10px] text-slate-400">
-                      Mengatasi batasan Chrome HP yang tidak bisa upload folder
-                    </span>
-                  </div>
-                </div>
-                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40">
-                  Rekomendasi
-                </span>
+            {/* User Story & Bio */}
+            <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+              <div className="flex items-center gap-2 text-amber-400 text-xs font-bold">
+                <Sparkles className="w-4 h-4" />
+                <span>CERITA DI BALIK APLIKASI</span>
               </div>
-
-              <p className="text-slate-300 text-[11px] leading-relaxed">
-                Server kami akan langsung mengunggah seluruh folder bersarang (seperti <code>android/</code>, <code>src/</code>, dan <code>.github/</code>) ke akun GitHub Anda dalam 5 detik.
+              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+                Aplikasi ini adalah aplikasi pertama yang saya buat dengan bantuan AI. Saya bukan seorang Developer Aplikasi, saya hanya suka Teknologi yang saat ini sangat cepat berkembang.
               </p>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                Sejak tahun 2013 saya suka me-modif aplikasi dan game Android. Bahkan pecinta custom rom Android pada masa jayanya cusrom.
+              </p>
+            </div>
 
-              {onOpenGitHub && (
-                <button
-                  onClick={onOpenGitHub}
-                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/25 active:scale-95 transition-all flex items-center justify-center gap-2"
+            {/* Contact Cards Section */}
+            <div className="space-y-3">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                Hubungi & Terhubung Langsung
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* WhatsApp */}
+                <a
+                  href="https://wa.me/6285179709543?text=Halo%20Bang%20Iswandi,%20saya%20pengguna%20aplikasi%20Catatan%20Ikan"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 hover:border-emerald-500/50 hover:bg-emerald-950/20 transition-all flex items-center justify-between group"
                 >
-                  <UploadCloud className="w-4 h-4 stroke-[2.5]" />
-                  <span>🚀 BUKA FORMULIR PUSH KE GITHUB SEKARANG</span>
-                </button>
-              )}
-            </div>
-
-            {/* SEKSI 2: UNDUH BERKAS LENGKAP (.ZIP) */}
-            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-sky-400">
-                    <FileArchive className="w-4 h-4" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                      <MessageCircle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">WhatsApp</span>
+                      <span className="text-xs font-bold text-slate-100 group-hover:text-emerald-300 font-mono">
+                        085179709543
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="font-extrabold text-slate-200 text-xs block">
-                      Berkas Lengkap Proyek (.ZIP)
-                    </span>
-                    <span className="text-[10px] text-emerald-400 font-semibold">
-                      Ukuran Asli: ~750 KB (Bukan 10 KB)
-                    </span>
-                  </div>
-                </div>
-                <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 text-[10px] font-bold border border-sky-500/40">
-                  Full Source
-                </span>
-              </div>
+                  <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-emerald-400" />
+                </a>
 
-              <p className="text-slate-400 text-[11px] leading-relaxed">
-                File ZIP ini berisi seluruh kode sumber bersih tanpa dependensi rusak, lengkap dengan proyek <code>android/</code> Capacitor, berkas workflow GitHub Actions, dan aset.
-              </p>
-
-              <div className="space-y-2 pt-1">
-                <button
-                  onClick={handleDownloadFullZip}
-                  disabled={isDownloadingZip}
-                  className="w-full py-3 px-4 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs shadow-lg shadow-sky-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                {/* Email */}
+                <a
+                  href="mailto:afiqahnaylaputrii@gmail.com?subject=Catatan%20by%20Iswandi"
+                  className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 hover:border-sky-500/50 hover:bg-sky-950/20 transition-all flex items-center justify-between group"
                 >
-                  {isDownloadingZip ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Sedang Mengunduh Berkas ZIP (~750 KB)...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-4 h-4 stroke-[2.5]" />
-                      <span>UNDUH BERKAS .ZIP LENGKAP (750 KB)</span>
-                    </>
-                  )}
-                </button>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center">
+                      <Mail className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Email</span>
+                      <span className="text-xs font-bold text-slate-100 group-hover:text-sky-300 truncate max-w-[170px] block">
+                        afiqahnaylaputrii@gmail.com
+                      </span>
+                    </div>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-sky-400" />
+                </a>
 
-                <div className="text-center">
-                  <a
-                    href="/catatan-by-iswandi-source.zip"
-                    download="catatan-by-iswandi-source.zip"
-                    className="text-[10px] text-slate-500 hover:text-amber-400 underline transition-colors"
-                  >
-                    Tautan Alternatif Langsung (Jika tombol di atas tidak merespons)
-                  </a>
-                </div>
+                {/* Facebook */}
+                <a
+                  href="https://www.facebook.com/search/top?q=Jack%20Separuh"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 hover:border-blue-500/50 hover:bg-blue-950/20 transition-all flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-sm">
+                      FB
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Facebook</span>
+                      <span className="text-xs font-bold text-slate-100 group-hover:text-blue-300">
+                        Jack Separuh
+                      </span>
+                    </div>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-blue-400" />
+                </a>
+
+                {/* Instagram */}
+                <a
+                  href="https://instagram.com/1swandi"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 hover:border-pink-500/50 hover:bg-pink-950/20 transition-all flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-pink-500/20 text-pink-400 flex items-center justify-center font-bold text-sm">
+                      IG
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Instagram</span>
+                      <span className="text-xs font-bold text-slate-100 group-hover:text-pink-300">
+                        @1swandi
+                      </span>
+                    </div>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-pink-400" />
+                </a>
+
+                {/* TikTok */}
+                <a
+                  href="https://tiktok.com/@1swandi"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 hover:border-amber-500/50 hover:bg-amber-950/20 transition-all flex items-center justify-between group sm:col-span-2"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm">
+                      TT
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">TikTok</span>
+                      <span className="text-xs font-bold text-slate-100 group-hover:text-amber-300">
+                        @1swandi
+                      </span>
+                    </div>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-amber-400" />
+                </a>
               </div>
             </div>
 
-            {/* SEKSI 3: PANDUAN MANUAL DARI BROWSER HP */}
-            <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2 text-[11px]">
-              <span className="font-bold text-amber-400 block">
-                Langkah Membuat File Workflow di GitHub dari HP:
-              </span>
-              <ol className="list-decimal list-inside space-y-1.5 text-slate-300">
-                <li>
-                  Buka repositori GitHub Anda di Chrome HP:{' '}
-                  <a
-                    href="https://github.com/sodongmubarak-ux/Iswandi"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-amber-400 underline font-semibold"
-                  >
-                    github.com/sodongmubarak-ux/Iswandi
-                  </a>
-                </li>
-                <li>
-                  Ketuk <strong>Add file</strong> &gt; pilih <strong>Create new file</strong>.
-                </li>
-                <li>
-                  Pada kotak nama file, ketik persis:{' '}
-                  <code className="text-amber-300 bg-slate-900 px-1 py-0.5 rounded">
-                    .github/workflows/build-apk.yml
-                  </code>
-                </li>
-                <li>
-                  Tempel kode workflow YAML lalu tekan tombol hijau <strong>Commit changes</strong>.
-                </li>
-                <li>
-                  Masuk ke tab <strong>Actions</strong> &gt; tunggu proses build ~2 menit &gt; unduh file{' '}
-                  <strong className="text-amber-400">Catatan-by-Iswandi-APK</strong> dan pasang di HP Anda!
-                </li>
-              </ol>
-            </div>
-
-            {/* SEKSI 4: PEMASANGAN INSTAN PWA */}
-            <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-1.5">
-              <span className="font-bold text-sky-400 block text-xs">
-                Pilihan Alternatif: Pasang Langsung Tanpa Build (PWA)
-              </span>
-              <p className="text-slate-400 text-[11px] leading-relaxed">
-                Di Google Chrome Android, Anda juga bisa langsung mengetuk menu titik tiga (⋮) di pojok kanan atas browser lalu pilih{' '}
-                <strong className="text-slate-200">"Tambahkan ke Layar Utama" (Install app)</strong>. Aplikasi akan terpasang langsung di menu HP Anda dengan ikon Catatan Iswandi dan berfungsi 100% offline.
-              </p>
+            {/* Quick APK Download Card */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-slate-950 to-slate-950 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3 text-center sm:text-left">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-white block">Catatan by Iswandi APK (v1.0.5)</span>
+                  <span className="text-[10px] text-slate-400">Unduh langsung ke HP Android</span>
+                </div>
+              </div>
+              <a
+                href="https://github.com/sodongmubarak-ux/Iswandi/releases/download/v1.0.5/Catatan-by-Iswandi.apk"
+                className="py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all whitespace-nowrap"
+              >
+                <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Unduh File APK</span>
+              </a>
             </div>
           </div>
         </div>

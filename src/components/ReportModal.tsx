@@ -392,7 +392,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
                   <span className="text-slate-300">
                     Bongkar (Estimasi){' '}
                     <span className="text-[10px] text-slate-500">
-                      (&le;1t Rp1,4 Jt, +Rp700rb/kelipatan ton)
+                      (&lt;1t Rp0, 1t Rp1,4 Jt, +Rp700rb/kelipatan ton)
                     </span>
                   </span>
                   <span className="font-mono font-bold text-slate-100 tabular-nums">
