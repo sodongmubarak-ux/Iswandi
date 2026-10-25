@@ -1,0 +1,865 @@
+import React, { useRef, useState } from 'react';
+import { GoogleGenAI } from '@google/genai';
+import {
+  Camera,
+  Image as ImageIcon,
+  RotateCw,
+  RotateCcw,
+  Sparkles,
+  AlertTriangle,
+  CheckCircle2,
+  Edit3,
+  Save,
+  RefreshCw,
+  Eye,
+  Trash2,
+  Plus,
+  Info,
+} from 'lucide-react';
+import { AppSettings, BookkeepingRecord, FishItem } from '../types';
+import { calculateBookkeeping, calculateTotalKg, formatKg, formatRupiah, formatTon } from '../utils/calculator';
+
+interface ScanCatatanViewProps {
+  settings: AppSettings;
+  onSaveRecord: (record: BookkeepingRecord, photoBase64?: string) => Promise<void>;
+  onEditInForm: (partialRecord: Partial<BookkeepingRecord>, photoBase64?: string) => void;
+}
+
+export const ScanCatatanView: React.FC<ScanCatatanViewProps> = ({
+  settings,
+  onSaveRecord,
+  onEditInForm,
+}) => {
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  const [rawPhoto, setRawPhoto] = useState<string | null>(null);
+  const [photoRotation, setPhotoRotation] = useState<number>(0);
+  const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [scanStep, setScanStep] = useState<string>('');
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanResult, setScanResult] = useState<{
+    tanggal: string;
+    rumpon: string;
+    items: FishItem[];
+    totalBeratKg?: number;
+    totalHarga?: number;
+    catatan?: string;
+    unreadableNotes?: string[];
+  } | null>(null);
+
+  // Editable parsed fields
+  const [tanggal, setTanggal] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
+  const [rumpon, setRumpon] = useState<string>('');
+  const [items, setItems] = useState<FishItem[]>([]);
+  const [catatan, setCatatan] = useState<string>('');
+  const [totalHargaManual, setTotalHargaManual] = useState<string>('');
+  const [activeTabPreview, setActiveTabPreview] = useState<'comparison' | 'photo' | 'data'>('comparison');
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+
+  // File loading handler
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setScanError(null);
+    setScanResult(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      setRawPhoto(base64);
+      setPhotoRotation(0);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  // Rotate photo using canvas
+  const handleRotate = (deg: number) => {
+    if (!rawPhoto) return;
+    const newRotation = (photoRotation + deg + 360) % 360;
+    setPhotoRotation(newRotation);
+
+    const img = new Image();
+    img.src = rawPhoto;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      if (deg === 90 || deg === -90 || deg === 270) {
+        canvas.width = img.height;
+        canvas.height = img.width;
+      } else {
+        canvas.width = img.width;
+        canvas.height = img.height;
+      }
+
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((deg * Math.PI) / 180);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+      const rotatedBase64 = canvas.toDataURL('image/jpeg', 0.9);
+      setRawPhoto(rotatedBase64);
+    };
+  };
+
+  // Perform AI Scan via backend
+  const handleProcessScan = async () => {
+    if (!rawPhoto) {
+      setScanError('Silakan ambil foto atau pilih foto dari galeri terlebih dahulu.');
+      return;
+    }
+
+    setIsScanning(true);
+    setScanError(null);
+    setScanStep('Menghubungi model Gemini...');
+
+    try {
+      setScanStep('Menganalisis tulisan tangan catatan hasil ikan...');
+
+      let parsed: {
+        tanggal?: string;
+        rumpon?: string;
+        items?: Array<{ namaIkan?: string; beratKg?: number; hargaPerKg?: number; subtotal?: number; confidence?: string }>;
+        totalHarga?: number;
+        catatan?: string;
+      } = {};
+
+      let success = false;
+
+      // 1. Coba lewat backend proxy /api/gemini/scan terlebih dahulu
+      try {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (settings.userApiKey?.trim()) {
+          headers['x-gemini-api-key'] = settings.userApiKey.trim();
+        }
+
+        const res = await fetch('/api/gemini/scan', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            imageBase64: rawPhoto,
+            mimeType: 'image/jpeg',
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          parsed = data.data || {};
+          success = true;
+        }
+      } catch (fetchErr) {
+        console.warn('Backend proxy scan tidak terjangkau (kemungkinan berjalan di APK native offline):', fetchErr);
+      }
+
+      // 2. Jika backend tidak tersedia (misal di aplikasi APK mandiri di HP) dan pengguna mengisi API key di Pengaturan:
+      if (!success) {
+        const clientApiKey = settings.userApiKey?.trim();
+        if (!clientApiKey) {
+          throw new Error(
+            'Gagal menghubungi server scan AI. Jika Anda menggunakan aplikasi APK di HP Android, silakan buka menu Pengaturan dan masukkan API Key Google Gemini gratis Anda agar pemindaian foto AI berfungsi langsung dari HP.'
+          );
+        }
+
+        setScanStep('Menganalisis langsung via Gemini di HP Android...');
+        const cleanBase64 = rawPhoto.replace(/^data:image\/[a-z]+;base64,/, '');
+        const ai = new GoogleGenAI({ apiKey: clientApiKey });
+
+        const prompt = `Anda adalah asisten cerdas pembaca catatan hasil tangkapan ikan Indonesia.
+Baca foto catatan tulisan tangan ini dan kembalikan HANYA format JSON valid:
+{
+  "tanggal": "YYYY-MM-DD atau tanggal terbaca",
+  "rumpon": "Nama rumpon atau lokasi",
+  "items": [
+    {
+      "namaIkan": "Nama jenis ikan (Tongkol, Cakalang, Layang, dll)",
+      "beratKg": 10.5,
+      "hargaPerKg": 25000,
+      "subtotal": 262500,
+      "confidence": "high"
+    }
+  ],
+  "totalHarga": 1500000,
+  "catatan": "Keterangan tambahan"
+}`;
+
+        const geminiRes = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    mimeType: 'image/jpeg',
+                    data: cleanBase64,
+                  },
+                },
+                { text: 'Digitalisasi catatan tulisan tangan ikan ini ke JSON.' },
+              ],
+            },
+          ],
+          config: {
+            responseMimeType: 'application/json',
+          },
+        });
+
+        const text = geminiRes.text || '{}';
+        try {
+          parsed = JSON.parse(text);
+          success = true;
+        } catch {
+          const match = text.match(/\{[\s\S]*\}/);
+          if (match) {
+            parsed = JSON.parse(match[0]);
+            success = true;
+          } else {
+            throw new Error('Gagal mengurai respons AI.');
+          }
+        }
+      }
+
+      // Map parsed items
+      const mappedItems: FishItem[] = Array.isArray(parsed.items)
+        ? parsed.items.map((it: { namaIkan?: string; beratKg?: number; hargaPerKg?: number; subtotal?: number; confidence?: string }, idx: number) => ({
+            id: `item-${Date.now()}-${idx}`,
+            namaIkan: it.namaIkan || 'Ikan Campur',
+            beratKg: Number(it.beratKg) || 0,
+            hargaPerKg: it.hargaPerKg ? Number(it.hargaPerKg) : undefined,
+            subtotal: it.subtotal ? Number(it.subtotal) : undefined,
+            confidence: it.confidence === 'uncertain' || it.confidence === 'low' ? 'uncertain' : 'high',
+          }))
+        : [];
+
+      setScanResult({
+        tanggal: parsed.tanggal && parsed.tanggal.length >= 8 ? parsed.tanggal : new Date().toISOString().split('T')[0],
+        rumpon: parsed.rumpon || '',
+        items: mappedItems,
+        totalHarga: parsed.totalHarga,
+        catatan: parsed.catatan || '',
+      });
+      setTanggal(parsed.tanggal && parsed.tanggal.length >= 8 ? parsed.tanggal : new Date().toISOString().split('T')[0]);
+      setRumpon(parsed.rumpon || '');
+      setItems(mappedItems);
+      setCatatan(parsed.catatan || '');
+      if (parsed.totalHarga) {
+        setTotalHargaManual(String(parsed.totalHarga));
+      }
+
+      setActiveTabPreview('comparison');
+    } catch (err: unknown) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : 'Terjadi kesalahan saat memproses scan AI.';
+      setScanError(msg);
+    } finally {
+      setIsScanning(false);
+      setScanStep('');
+    }
+  };
+
+  // Fish row management
+  const handleUpdateItem = (index: number, field: keyof FishItem, value: unknown) => {
+    setItems((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      // auto calculate subtotal if both are valid
+      if (field === 'beratKg' || field === 'hargaPerKg') {
+        const b = field === 'beratKg' ? Number(value) : next[index].beratKg;
+        const h = field === 'hargaPerKg' ? Number(value) : next[index].hargaPerKg;
+        if (b > 0 && h && h > 0) {
+          next[index].subtotal = b * h;
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleAddItem = () => {
+    setItems((prev) => [
+      ...prev,
+      {
+        id: `item-${Date.now()}`,
+        namaIkan: 'Cakalang',
+        beratKg: 0,
+        confidence: 'high',
+      },
+    ]);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Dynamic calculations
+  const totalBerat = calculateTotalKg(items);
+  const itemsSubtotal = items.reduce((acc, it) => acc + (it.subtotal || 0), 0);
+  const effectiveTotalHarga = totalHargaManual ? Number(totalHargaManual) || 0 : itemsSubtotal;
+  const calc = calculateBookkeeping(totalBerat, effectiveTotalHarga, undefined, settings);
+
+  // Save Bookkeeping Record
+  const handleSaveBookkeeping = async () => {
+    if (items.length === 0) {
+      setScanError('Tambahkan minimal satu jenis ikan sebelum menyimpan.');
+      return;
+    }
+
+    setIsSaving(true);
+    setScanError(null);
+
+    try {
+      const recordId = `rec-${Date.now()}`;
+      const newRecord: BookkeepingRecord = {
+        id: recordId,
+        tanggal: tanggal || new Date().toISOString().split('T')[0],
+        rumpon: rumpon.trim() || 'Rumpon Utama',
+        items,
+        totalBeratKg: calc.totalBeratKg,
+        totalTonase: calc.totalTonase,
+        totalHarga: calc.totalHargaIkan,
+        totalHargaIsManual: Boolean(totalHargaManual),
+
+        biayaPemikul: calc.biayaPemikul,
+        biayaPemikulIsManual: false,
+
+        biayaAbk: calc.biayaAbk,
+        biayaAbkIsManual: false,
+
+        biayaBongkar: calc.biayaBongkar,
+        biayaBongkarIsManual: false,
+
+        biayaNyelam: calc.biayaNyelam,
+        biayaNyelamIsManual: false,
+
+        totalBiaya: calc.totalBiaya,
+        bersih: calc.bersih,
+
+        keterangan: catatan,
+        unreadableNotes: scanResult?.unreadableNotes,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await onSaveRecord(newRecord, rawPhoto || undefined);
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 3000);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Gagal menyimpan pembukuan';
+      setScanError(msg);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5 pb-24">
+      {/* Hidden inputs for camera capture & gallery */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+
+      {/* Header Info */}
+      <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+            <Camera className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-white">Scan Buku Catatan AI</h2>
+            <p className="text-xs text-slate-400">
+              Ambil foto halaman buku catatan ikan, AI membaca tulisan tangan & menghitung otomatis.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Photo Picker & Camera Action Buttons */}
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          onClick={() => cameraInputRef.current?.click()}
+          className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/10 active:scale-95 transition-all"
+        >
+          <Camera className="w-4 h-4 stroke-[2.5]" />
+          <span>AMBIL FOTO (KAMERA)</span>
+        </button>
+        <button
+          onClick={() => galleryInputRef.current?.click()}
+          className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 font-bold text-xs active:scale-95 transition-all"
+        >
+          <ImageIcon className="w-4 h-4 text-amber-400" />
+          <span>PILIH DARI GALERI</span>
+        </button>
+      </div>
+
+      {/* Photo Preview & Manipulation Card */}
+      {rawPhoto ? (
+        <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-300">Pratinjau Foto Buku Catatan</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => handleRotate(-90)}
+                className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-amber-400 transition-colors"
+                title="Putar Kiri 90°"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleRotate(90)}
+                className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-amber-400 transition-colors"
+                title="Putar Kanan 90°"
+              >
+                <RotateCw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => {
+                  setRawPhoto(null);
+                  setScanResult(null);
+                }}
+                className="p-2 rounded-xl bg-red-950/60 border border-red-900/50 text-red-300 hover:text-red-200 transition-colors"
+                title="Hapus Foto"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 max-h-72 flex items-center justify-center">
+            <img
+              src={rawPhoto}
+              alt="Foto Catatan Ikan"
+              className="max-h-72 w-full object-contain"
+            />
+          </div>
+
+          {/* Trigger Scan Button */}
+          {!scanResult && (
+            <button
+              onClick={handleProcessScan}
+              disabled={isScanning}
+              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-amber-500/20 active:scale-95 disabled:opacity-50 transition-all"
+            >
+              {isScanning ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                  <span>{scanStep || 'Memproses AI Scan...'}</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 fill-slate-950" />
+                  <span>PROSES SCAN AI</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="p-8 rounded-3xl bg-slate-900/50 border border-dashed border-slate-800 text-center space-y-3">
+          <div className="w-14 h-14 rounded-full bg-slate-800/80 flex items-center justify-center mx-auto text-amber-400">
+            <Camera className="w-7 h-7" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-300">Belum ada foto yang dipilih</p>
+            <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+              Gunakan kamera untuk mengambil gambar buku catatan tulisan tangan atau unggah foto dari galeri HP Anda.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Error Banner */}
+      {scanError && (
+        <div className="p-4 rounded-2xl bg-red-950/80 border border-red-800/80 flex items-start gap-3 text-xs text-red-200">
+          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-red-300">Peringatan Scan</p>
+            <p className="mt-0.5">{scanError}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Scan Results & Comparison Area */}
+      {scanResult && (
+        <div className="space-y-4">
+          {/* Header tabs for visual comparison */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-900 rounded-xl border border-slate-800">
+              <button
+                onClick={() => setActiveTabPreview('comparison')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  activeTabPreview === 'comparison'
+                    ? 'bg-amber-500 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Bandingkan
+              </button>
+              <button
+                onClick={() => setActiveTabPreview('data')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  activeTabPreview === 'data'
+                    ? 'bg-amber-500 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Data Digital
+              </button>
+              <button
+                onClick={() => setActiveTabPreview('photo')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  activeTabPreview === 'photo'
+                    ? 'bg-amber-500 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Foto Asli
+              </button>
+            </div>
+
+            <button
+              onClick={handleProcessScan}
+              disabled={isScanning}
+              className="text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
+              <span>ULANGI SCAN</span>
+            </button>
+          </div>
+
+          {/* Unreadable / Warning items if any */}
+          {scanResult.unreadableNotes && scanResult.unreadableNotes.length > 0 && (
+            <div className="p-3.5 rounded-2xl bg-amber-950/40 border border-amber-800/60 text-xs text-amber-200 space-y-1">
+              <div className="flex items-center gap-2 font-bold text-amber-300">
+                <AlertTriangle className="w-4 h-4 text-amber-400" />
+                <span>Perlu Diperiksa (Tulisan Samar/Dicoret)</span>
+              </div>
+              <ul className="list-disc list-inside space-y-0.5 text-slate-300 pl-1 text-[11px]">
+                {scanResult.unreadableNotes.map((n, idx) => (
+                  <li key={idx}>{n}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* View Modes */}
+          {activeTabPreview === 'photo' && rawPhoto && (
+            <div className="rounded-3xl bg-slate-900 border border-slate-800 p-3 overflow-hidden">
+              <img
+                src={rawPhoto}
+                alt="Foto Asli"
+                className="w-full max-h-[450px] object-contain rounded-2xl"
+              />
+            </div>
+          )}
+
+          {(activeTabPreview === 'comparison' || activeTabPreview === 'data') && (
+            <div className="space-y-4">
+              {/* If comparison, show side-by-side or mini photo strip */}
+              {activeTabPreview === 'comparison' && rawPhoto && (
+                <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center gap-3">
+                  <img
+                    src={rawPhoto}
+                    alt="Foto Asli Mini"
+                    className="w-20 h-20 object-cover rounded-xl border border-slate-700 shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-slate-200">Perbandingan Visual Aktif</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Periksa apakah angka dan jenis ikan di bawah ini cocok dengan foto buku asli Anda.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Form Metadata: Tanggal & Rumpon */}
+              <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                      Tanggal
+                    </label>
+                    <input
+                      type="date"
+                      value={tanggal}
+                      onChange={(e) => setTanggal(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs font-mono focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                      Nama Rumpon / Lokasi
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: Rumpon 03"
+                      value={rumpon}
+                      onChange={(e) => setRumpon(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Fish Items Table */}
+              <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-200">Daftar Jenis Ikan</span>
+                  <button
+                    onClick={handleAddItem}
+                    className="flex items-center gap-1 text-[11px] font-bold text-amber-400 hover:text-amber-300"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah Baris</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {items.map((item, idx) => (
+                    <div
+                      key={item.id}
+                      className={`p-3 rounded-2xl bg-slate-950/80 border ${
+                        item.confidence === 'uncertain'
+                          ? 'border-amber-500/50 bg-amber-950/10'
+                          : 'border-slate-800/80'
+                      } space-y-2`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          <span className="text-xs font-mono font-bold text-amber-400">
+                            #{idx + 1}
+                          </span>
+                          <input
+                            type="text"
+                            value={item.namaIkan}
+                            onChange={(e) => handleUpdateItem(idx, 'namaIkan', e.target.value)}
+                            className="w-full px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-100 text-xs font-semibold focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
+
+                        {item.confidence === 'uncertain' && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40 whitespace-nowrap">
+                            Perlu Periksa
+                          </span>
+                        )}
+
+                        <button
+                          onClick={() => handleRemoveItem(idx)}
+                          className="p-1 rounded-lg text-slate-500 hover:text-red-400"
+                          title="Hapus baris ini"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-0.5">Berat (kg)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={item.beratKg || ''}
+                            onChange={(e) =>
+                              handleUpdateItem(idx, 'beratKg', parseFloat(e.target.value) || 0)
+                            }
+                            className="w-full px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-100 text-xs font-mono focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-0.5">Harga / kg (Rp)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1000"
+                            placeholder="Opsional"
+                            value={item.hargaPerKg || ''}
+                            onChange={(e) =>
+                              handleUpdateItem(idx, 'hargaPerKg', parseFloat(e.target.value) || 0)
+                            }
+                            className="w-full px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-100 text-xs font-mono focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-0.5">Subtotal (Rp)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1000"
+                            value={item.subtotal || ''}
+                            onChange={(e) =>
+                              handleUpdateItem(idx, 'subtotal', parseFloat(e.target.value) || 0)
+                            }
+                            className="w-full px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-100 text-xs font-mono focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Total Berat & Total Harga summary row */}
+                <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-slate-400">Total Berat: </span>
+                    <strong className="text-sky-300 font-mono">
+                      {formatKg(calc.totalBeratKg)} ({formatTon(calc.totalTonase)})
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Total Harga: </span>
+                    <strong className="text-emerald-400 font-mono">
+                      {formatRupiah(calc.totalHargaIkan)}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Direct Total Harga override if notebook only writes total */}
+                <div className="pt-1">
+                  <label className="block text-[10px] text-slate-400 mb-1">
+                    Atau isi Total Nilai Ikan Langsung (jika harga satuan tidak tertulis di buku):
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="Contoh: 100000000"
+                    value={totalHargaManual}
+                    onChange={(e) => setTotalHargaManual(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-xs font-mono focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Automatic Calculated Costs Breakdown Preview */}
+              <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-2.5">
+                <span className="text-xs font-bold text-slate-200">
+                  Estimasi Potongan & Biaya Otomatis
+                </span>
+
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                    <div>
+                      <span className="font-semibold text-slate-300">Pemikul</span>
+                      <span className="text-[10px] text-slate-500 ml-1.5">
+                        (Rp300.000 / 1.000 kg)
+                      </span>
+                    </div>
+                    <span className="font-bold text-slate-200 tabular-nums">
+                      {formatRupiah(calc.biayaPemikul)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                    <div>
+                      <span className="font-semibold text-slate-300">ABK (Estimasi)</span>
+                      <span className="text-[10px] text-slate-500 ml-1.5">
+                        (Rp1.000.000 / Rp20 Jt)
+                      </span>
+                    </div>
+                    <span className="font-bold text-slate-200 tabular-nums">
+                      {formatRupiah(calc.biayaAbk)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                    <div>
+                      <span className="font-semibold text-slate-300">Bongkar (Estimasi)</span>
+                      <span className="text-[10px] text-slate-500 ml-1.5">
+                        (&le;2t Rp1,4 Jt, &gt;2t +Rp700rb/t)
+                      </span>
+                    </div>
+                    <span className="font-bold text-slate-200 tabular-nums">
+                      {formatRupiah(calc.biayaBongkar)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                    <div>
+                      <span className="font-semibold text-slate-300">Nyelam (Estimasi)</span>
+                      <span className="text-[10px] text-slate-500 ml-1.5">
+                        (&ge;2t: Rp600rb + Rp600rb/t)
+                      </span>
+                    </div>
+                    <span className="font-bold text-slate-200 tabular-nums">
+                      {formatRupiah(calc.biayaNyelam)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Final Bersih Banner */}
+                <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 to-amber-500/5 border border-amber-500/40 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider block">
+                      Hasil Bersih
+                    </span>
+                    <span className="text-[11px] text-slate-400">Total Harga - Semua Biaya</span>
+                  </div>
+                  <span className="text-xl font-black text-amber-400 tabular-nums">
+                    {formatRupiah(calc.bersih)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons: Edit in full form or Save */}
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  onClick={() =>
+                    onEditInForm(
+                      {
+                        tanggal,
+                        rumpon,
+                        items,
+                        totalHarga: effectiveTotalHarga,
+                        totalHargaIsManual: Boolean(totalHargaManual),
+                        keterangan: catatan,
+                      },
+                      rawPhoto || undefined
+                    )
+                  }
+                  className="py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <Edit3 className="w-4 h-4 text-amber-400" />
+                  <span>EDIT HASIL LENGKAP</span>
+                </button>
+
+                <button
+                  onClick={handleSaveBookkeeping}
+                  disabled={isSaving}
+                  className="py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20 active:scale-95 disabled:opacity-50 transition-all"
+                >
+                  {isSaving ? (
+                    <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                  ) : saveSuccess ? (
+                    <CheckCircle2 className="w-4 h-4 text-slate-950" />
+                  ) : (
+                    <Save className="w-4 h-4 fill-slate-950" />
+                  )}
+                  <span>{saveSuccess ? 'TERSIPAN!' : 'SIMPAN PEMBUKUAN'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
