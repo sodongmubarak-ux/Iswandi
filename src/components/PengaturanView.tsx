@@ -741,12 +741,38 @@ export const PengaturanView: React.FC<PengaturanViewProps> = ({
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Judul Kepala Slip / Laporan
+                  Judul Kepala Slip / Laporan (PDF & Dokumen)
                 </label>
                 <input
                   type="text"
                   value={formData.reportTitle}
                   onChange={(e) => handleChange('reportTitle', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-xs focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Judul Khusus Slip Gambar (Bagian Atas Tulisan Standar)
+                </label>
+                <input
+                  type="text"
+                  placeholder="PEMBUKUAN HASIL IKAN"
+                  value={formData.slipTitle || ''}
+                  onChange={(e) => handleChange('slipTitle', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-xs focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Catatan Bawah Slip Gambar (Footer)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Catatan: Ini merupakan hitungan sementara dan bukan hitungan pasti."
+                  value={formData.slipFooterNote || ''}
+                  onChange={(e) => handleChange('slipFooterNote', e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-xs focus:border-amber-500 focus:outline-none"
                 />
               </div>

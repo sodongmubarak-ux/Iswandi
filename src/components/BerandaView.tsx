@@ -108,14 +108,6 @@ export const BerandaView: React.FC<BerandaViewProps> = ({
                 <span className="text-slate-400 font-mono text-[10px]">{latestTanggal}</span>
               </>
             )}
-            {latestRecord && (
-              <>
-                <span className="text-slate-600">•</span>
-                <span className="text-emerald-300 font-mono text-[10px] font-bold">
-                  Bersih: {formatRupiah(latestRecord.bersih)} (Rumpon 1x: {formatRupiah(latestRecord.pembagianRumpon || Math.round(latestRecord.bersih / 3))} | Kapal 2x: {formatRupiah(latestRecord.pembagianKapal || latestRecord.bersih - Math.round(latestRecord.bersih / 3))})
-                </span>
-              </>
-            )}
           </div>
         </div>
 

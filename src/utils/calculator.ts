@@ -46,6 +46,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   linkDownloadAplikasi:
     'https://github.com/sodongmubarak-ux/Iswandi/releases/latest/download/Catatan-by-Iswandi.apk',
 
+  slipTitle: 'PEMBUKUAN HASIL IKAN',
+  slipFooterNote: 'Catatan: Ini merupakan hitungan sementara dan bukan hitungan pasti.',
+
   mediaSosial: {
     tiktok: '',
     facebook: 'https://www.facebook.com/1swandi',

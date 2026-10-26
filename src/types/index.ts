@@ -74,6 +74,10 @@ export interface AppSettings {
   teksCatatanOtomatis: string;
   linkDownloadAplikasi: string;
 
+  // Kustomisasi Slip Gambar
+  slipTitle?: string;
+  slipFooterNote?: string;
+
   // Media Sosial
   mediaSosial: {
     tiktok: string;

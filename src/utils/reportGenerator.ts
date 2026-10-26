@@ -31,6 +31,8 @@ export interface ShareOrDownloadOptions {
   settings: AppSettings;
   photoBase64?: string | null;
   includePhoto?: boolean;
+  customTitle?: string;
+  customNote?: string;
 }
 
 /**
@@ -574,8 +576,17 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
     }
   }
 
+  const slipTitle = (options.customTitle !== undefined ? options.customTitle : (settings.slipTitle || 'PEMBUKUAN HASIL IKAN')).trim();
+  const slipFooterNote = (options.customNote !== undefined ? options.customNote : (settings.slipFooterNote || 'Catatan: Ini merupakan hitungan sementara dan bukan hitungan pasti.')).trim();
+
   // Calculate required height dynamically for snug, clean portrait framing
   let contentRequiredHeight = padding;
+
+  // 0. Custom Judul Slip (tulisan standar)
+  const titleBoxH = slipTitle ? 38 : 0;
+  if (slipTitle) {
+    contentRequiredHeight += titleBoxH + 16;
+  }
 
   // 1. Header Card (Tanggal & Rumpon)
   const headerCardH = 76;
@@ -651,7 +662,26 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
   let curY = padding;
 
   // =========================================================================
-  // 1. BAGIAN ATAS: LANGSUNG TANGGAL DAN NAMA RUMPON (TANPA HEADER 'CATATAN BY ISWANDI')
+  // 0. CUSTOM JUDUL SLIP GAMBAR (BAGIAN ATAS TULISAN STANDAR)
+  // =========================================================================
+  if (slipTitle) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
+    ctx.fillText(slipTitle.toUpperCase(), padding + contentWidth / 2, curY + 22);
+
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(padding + 20, curY + titleBoxH);
+    ctx.lineTo(padding + contentWidth - 20, curY + titleBoxH);
+    ctx.stroke();
+
+    curY += titleBoxH + 16;
+  }
+
+  // =========================================================================
+  // 1. BAGIAN ATAS: LANGSUNG TANGGAL DAN NAMA RUMPON
   // =========================================================================
   ctx.fillStyle = '#f8fafc';
   ctx.beginPath();
@@ -902,22 +932,10 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
   curY += 24;
 
   const feeRows = [
-    { name: 'Pemikul', sub: '(Rp300rb / 1.000 kg)', val: record.biayaPemikul },
-    {
-      name: 'ABK (Estimasi)',
-      sub: settings.abkMetode === 'kelipatan_penuh' ? '(Kelipatan Penuh Rp20 Jt)' : '(Proporsional Rp20 Jt)',
-      val: record.biayaAbk,
-    },
-    {
-      name: 'Bongkar (Estimasi)',
-      sub: '(<1t Rp0, 1t Rp1,4 Jt, +Rp700rb/kelipatan ton)',
-      val: record.biayaBongkar,
-    },
-    {
-      name: 'Nyelam (Estimasi)',
-      sub: '(≥2t: Rp600rb + Rp600rb/t)',
-      val: record.biayaNyelam,
-    },
+    { name: 'Pemikul', val: record.biayaPemikul },
+    { name: 'ABK (Estimasi)', val: record.biayaAbk },
+    { name: 'Bongkar (Estimasi)', val: record.biayaBongkar },
+    { name: 'Nyelam (Estimasi)', val: record.biayaNyelam },
   ];
 
   ctx.fillStyle = '#fff1f2';
@@ -938,10 +956,6 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
     ctx.fillStyle = '#1e293b';
     ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
     ctx.fillText(fr.name, padding + 20, feeRowY);
-
-    ctx.fillStyle = '#64748b';
-    ctx.font = '12px system-ui, -apple-system, sans-serif';
-    ctx.fillText(fr.sub, padding + 160, feeRowY);
 
     ctx.textAlign = 'right';
     ctx.fillStyle = '#b91c1c';
@@ -989,11 +1003,8 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
   // Left: Label Total Bersih
   ctx.textAlign = 'left';
   ctx.fillStyle = '#065f46';
-  ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
-  ctx.fillText('TOTAL HASIL BERSIH (NETTO)', padding + 20, curY + 28);
-  ctx.fillStyle = '#047857';
-  ctx.font = '12px system-ui, -apple-system, sans-serif';
-  ctx.fillText('Total Nilai Kotor - Total Operasional', padding + 20, curY + 48);
+  ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
+  ctx.fillText('TOTAL HASIL BERSIH (NETTO)', padding + 20, curY + 40);
 
   // Right: Value (standar saja, tidak terlalu besar)
   ctx.textAlign = 'right';
@@ -1023,14 +1034,14 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
   // Title
   ctx.textAlign = 'left';
   ctx.fillStyle = '#854d0e';
-  ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
-  ctx.fillText('PEMBAGIAN HASIL BERSIH (DIBAGI 3 BAGIAN):', padding + 20, curY + 22);
+  ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
+  ctx.fillText('PEMBAGIAN HASIL BERSIH:', padding + 20, curY + 22);
 
   const subBoxW = (contentWidth - 40 - 14) / 2;
   const subBoxY = curY + 32;
   const subBoxH = 44;
 
-  // Bagian Rumpon (1 Bagian)
+  // Bagian Rumpon
   const rumponBoxX = padding + 20;
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
@@ -1046,13 +1057,13 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
 
   ctx.textAlign = 'left';
   ctx.fillStyle = '#a16207';
-  ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
-  ctx.fillText('RUMPON (1 BAGIAN):', rumponBoxX + 12, subBoxY + 18);
+  ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+  ctx.fillText('RUMPON:', rumponBoxX + 12, subBoxY + 18);
   ctx.fillStyle = '#854d0e';
   ctx.font = 'bold 18px monospace';
   ctx.fillText(formatRupiah(rumponBagian), rumponBoxX + 12, subBoxY + 36);
 
-  // Bagian Kapal (2 Bagian)
+  // Bagian Kapal
   const kapalBoxX = rumponBoxX + subBoxW + 14;
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
@@ -1068,8 +1079,8 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
 
   ctx.textAlign = 'left';
   ctx.fillStyle = '#15803d';
-  ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
-  ctx.fillText('KAPAL (2 BAGIAN):', kapalBoxX + 12, subBoxY + 18);
+  ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+  ctx.fillText('KAPAL:', kapalBoxX + 12, subBoxY + 18);
   ctx.fillStyle = '#14532d';
   ctx.font = 'bold 18px monospace';
   ctx.fillText(formatRupiah(kapalBagian), kapalBoxX + 12, subBoxY + 36);
@@ -1077,15 +1088,17 @@ export async function renderSlipToCanvas(options: ShareOrDownloadOptions): Promi
   curY += splitCardH + 26;
 
   // =========================================================================
-  // 8. LOGO WA: 085179709543 & CATATAN SEMENTARA
+  // 8. LOGO WA: 085179709543 & CATATAN KUSTOM
   // =========================================================================
   drawWhatsAppBadge(ctx, targetWidth / 2, curY, '085179709543');
   curY += 36;
 
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#64748b';
-  ctx.font = 'italic 13px system-ui, -apple-system, sans-serif';
-  ctx.fillText('Catatan: Ini merupakan hitungan sementara dan bukan hitungan pasti.', targetWidth / 2, curY);
+  if (slipFooterNote) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#64748b';
+    ctx.font = 'italic 13px system-ui, -apple-system, sans-serif';
+    ctx.fillText(slipFooterNote, targetWidth / 2, curY);
+  }
 
   return canvas.toDataURL('image/png');
 }

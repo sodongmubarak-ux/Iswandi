@@ -29,6 +29,13 @@ interface ReportModalProps {
 
 export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onClose }) => {
   const slipRef = useRef<HTMLDivElement>(null);
+  const [slipTitle, setSlipTitle] = useState<string>(
+    settings.slipTitle || 'PEMBUKUAN HASIL IKAN'
+  );
+  const [slipFooterNote, setSlipFooterNote] = useState<string>(
+    settings.slipFooterNote || 'Catatan: Ini merupakan hitungan sementara dan bukan hitungan pasti.'
+  );
+  const [isCustomizing, setIsCustomizing] = useState<boolean>(false);
   const [photoBase64, setPhotoBase64] = useState<string | null>(record?.fotoAsliBase64 || null);
   const [includePhoto, setIncludePhoto] = useState<boolean>(settings.sertakanFotoLaporan);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -63,6 +70,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
         settings,
         photoBase64,
         includePhoto,
+        customTitle: slipTitle,
+        customNote: slipFooterNote,
       });
       const res = await fetch(dataUrl);
       const blob = await res.blob();
@@ -86,13 +95,15 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
         settings,
         photoBase64,
         includePhoto,
+        customTitle: slipTitle,
+        customNote: slipFooterNote,
       });
       const res = await fetch(dataUrl);
       const blob = await res.blob();
       const result = await shareFile(
         blob,
         cleanFileName('png'),
-        `Slip Pembukuan - ${record.rumpon}`
+        `${slipTitle || 'Slip Pembukuan'} - ${record.rumpon}`
       );
       setStatusMessage({
         text: result.method === 'shared' ? 'Berhasil dibagikan!' : 'Gambar berhasil disimpan!',
@@ -116,6 +127,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
         settings,
         photoBase64,
         includePhoto,
+        customTitle: slipTitle,
+        customNote: slipFooterNote,
       });
       const blob = doc.output('blob');
       await downloadFile(blob, cleanFileName('pdf'));
@@ -138,12 +151,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
         settings,
         photoBase64,
         includePhoto,
+        customTitle: slipTitle,
+        customNote: slipFooterNote,
       });
       const blob = doc.output('blob');
       const result = await shareFile(
         blob,
         cleanFileName('pdf'),
-        `CATATAN BY ISWANDI - ${record.rumpon}`
+        `${slipTitle || 'Catatan Pembukuan'} - ${record.rumpon}`
       );
       setStatusMessage({
         text: result.method === 'shared' ? 'PDF berhasil dibagikan!' : 'PDF berhasil disimpan!',
@@ -244,13 +259,80 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
           </button>
         </div>
 
+        {/* Panel Kustomisasi Judul & Catatan Slip Gambar */}
+        <div className="px-4 py-2.5 bg-slate-900 border-b border-slate-800 text-xs shrink-0">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setIsCustomizing(!isCustomizing)}
+              className="flex items-center gap-2 text-amber-400 font-bold hover:text-amber-300 transition-colors"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>Kustomisasi Judul & Catatan Slip</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
+                {isCustomizing ? 'Tutup' : 'Ubah Judul / Catatan'}
+              </span>
+            </button>
+            {(slipTitle !== (settings.slipTitle || 'PEMBUKUAN HASIL IKAN') ||
+              slipFooterNote !== (settings.slipFooterNote || 'Catatan: Ini merupakan hitungan sementara dan bukan hitungan pasti.')) && (
+              <button
+                onClick={() => {
+                  setSlipTitle(settings.slipTitle || 'PEMBUKUAN HASIL IKAN');
+                  setSlipFooterNote(settings.slipFooterNote || 'Catatan: Ini merupakan hitungan sementara dan bukan hitungan pasti.');
+                }}
+                className="text-[11px] text-slate-400 hover:text-rose-400 underline transition-colors"
+              >
+                Reset ke Standar
+              </button>
+            )}
+          </div>
+
+          {isCustomizing && (
+            <div className="mt-3 p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  Judul Slip (Bagian Atas Tulisan Standar):
+                </label>
+                <input
+                  type="text"
+                  value={slipTitle}
+                  onChange={(e) => setSlipTitle(e.target.value)}
+                  placeholder="Contoh: PEMBUKUAN HASIL IKAN"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-xs font-semibold focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  Catatan Bawah Slip (Footer):
+                </label>
+                <input
+                  type="text"
+                  value={slipFooterNote}
+                  onChange={(e) => setSlipFooterNote(e.target.value)}
+                  placeholder="Contoh: Catatan: Ini merupakan hitungan sementara dan bukan hitungan pasti."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-xs focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Scrollable Printable Slip Container (LIGHT THEME) */}
         <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-950">
           <div
             ref={slipRef}
             className="max-w-xl mx-auto rounded-3xl bg-white border-4 border-slate-900 p-5 sm:p-7 shadow-2xl text-slate-900 space-y-5"
           >
-            {/* 1. Bagian Atas: Langsung Tanggal dan Nama Rumpon (Hapus Header Catatan by Iswandi) */}
+            {/* 0. Judul Slip (Bagian Atas Tulisan Standar) */}
+            {slipTitle.trim() && (
+              <div className="text-center pb-2 border-b border-slate-200">
+                <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-wider uppercase">
+                  {slipTitle}
+                </h2>
+              </div>
+            )}
+
+            {/* 1. Bagian Atas: Langsung Tanggal dan Nama Rumpon */}
             <div className="grid grid-cols-2 gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
               <div>
                 <span className="text-[10px] text-slate-500 block font-bold uppercase tracking-wider">TANGGAL:</span>
@@ -371,8 +453,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
               </span>
               <div className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-200 space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-800">
-                    Pemikul <span className="text-[10px] text-slate-500">(Rp300rb / 1.000 kg)</span>
+                  <span className="text-slate-800 font-medium">
+                    Pemikul
                   </span>
                   <span className="font-mono font-bold text-rose-700 tabular-nums">
                     {formatRupiah(record.biayaPemikul)}
@@ -380,7 +462,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-800">
+                  <span className="text-slate-800 font-medium">
                     ABK (Estimasi)
                   </span>
                   <span className="font-mono font-bold text-rose-700 tabular-nums">
@@ -389,7 +471,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-800">
+                  <span className="text-slate-800 font-medium">
                     Bongkar (Estimasi)
                   </span>
                   <span className="font-mono font-bold text-rose-700 tabular-nums">
@@ -398,7 +480,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-800">
+                  <span className="text-slate-800 font-medium">
                     Nyelam (Estimasi)
                   </span>
                   <span className="font-mono font-bold text-rose-700 tabular-nums">
@@ -415,12 +497,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
 
             {/* 6. Total Bersih (Tulisan standar saja, tidak usah terlalu besar) */}
             <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-400 flex items-center justify-between shadow-sm">
-              <div>
-                <span className="text-xs font-bold text-emerald-900 uppercase tracking-wide block">
-                  Total Bersih
-                </span>
-                <span className="text-[11px] text-emerald-700">Total Nilai Kotor - Operasional</span>
-              </div>
+              <span className="text-xs font-bold text-emerald-900 uppercase tracking-wide block">
+                Total Bersih
+              </span>
               <span className="text-lg sm:text-xl font-bold text-emerald-800 font-mono tabular-nums">
                 {formatRupiah(record.bersih)}
               </span>
@@ -432,35 +511,33 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
               return (
                 <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-300 space-y-2 shadow-sm">
                   <span className="text-xs font-bold text-amber-950 block">
-                    Pembagian Hasil Bersih (Dibagi 3 Bagian):
+                    Pembagian Hasil Bersih:
                   </span>
 
                   <div className="grid grid-cols-2 gap-2.5">
                     <div className="p-2.5 rounded-xl bg-white border border-amber-200 text-left">
                       <span className="text-[10px] font-bold text-amber-800 uppercase block">
-                        Rumpon (1 Bagian)
+                        Rumpon
                       </span>
                       <span className="text-base font-bold text-amber-900 font-mono tabular-nums block">
                         {formatRupiah(rumponBagian)}
                       </span>
-                      <span className="text-[9px] text-slate-500 block">1/3 bagian</span>
                     </div>
 
                     <div className="p-2.5 rounded-xl bg-white border border-emerald-200 text-left">
                       <span className="text-[10px] font-bold text-emerald-800 uppercase block">
-                        Kapal (2 Bagian)
+                        Kapal
                       </span>
                       <span className="text-base font-bold text-emerald-900 font-mono tabular-nums block">
                         {formatRupiah(kapalBagian)}
                       </span>
-                      <span className="text-[9px] text-slate-500 block">2/3 bagian</span>
                     </div>
                   </div>
                 </div>
               );
             })()}
 
-            {/* 8. Logo WA & Catatan Sementara */}
+            {/* 8. Logo WA & Catatan Kustom */}
             <div className="pt-3 border-t border-slate-200 text-center space-y-1.5">
               <div className="inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-slate-900 font-bold text-xs">
                 <div className="w-5 h-5 rounded-full bg-[#25D366] flex items-center justify-center text-white text-[10px] shadow-sm">
@@ -468,9 +545,11 @@ export const ReportModal: React.FC<ReportModalProps> = ({ record, settings, onCl
                 </div>
                 <span>085179709543</span>
               </div>
-              <p className="text-[11px] text-slate-500 italic">
-                Catatan: Ini merupakan hitungan sementara dan bukan hitungan pasti.
-              </p>
+              {slipFooterNote && (
+                <p className="text-[11px] text-slate-500 italic">
+                  {slipFooterNote}
+                </p>
+              )}
             </div>
           </div>
         </div>

@@ -265,25 +265,6 @@ export const RiwayatView: React.FC<RiwayatViewProps> = ({
                     <span>{record.items?.length || 0} jenis ikan</span>
                   </div>
                 </div>
-
-                <div className="text-right shrink-0">
-                  <span className="text-base font-black text-amber-400 font-mono tabular-nums block">
-                    {formatRupiah(record.bersih)}
-                  </span>
-                  <span className="text-[10px] text-slate-500">Bersih</span>
-                </div>
-              </div>
-
-              {/* Profit Split Chip */}
-              <div className="flex items-center gap-2 pt-0.5 text-[11px] font-mono flex-wrap">
-                <span className="text-slate-400 text-[10px] uppercase font-bold">Bagi 3:</span>
-                <span className="text-amber-300 font-bold">
-                  Rumpon (1x): {formatRupiah(record.pembagianRumpon || Math.round(record.bersih / 3))}
-                </span>
-                <span className="text-slate-600">•</span>
-                <span className="text-emerald-300 font-bold">
-                  Kapal (2x): {formatRupiah(record.pembagianKapal || record.bersih - Math.round(record.bersih / 3))}
-                </span>
               </div>
 
               {/* Fish Items Chips Preview */}
